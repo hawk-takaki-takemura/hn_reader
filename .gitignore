@@ -48,3 +48,8 @@ GoogleService-Info.plist
 # Firebase
 firebase.json
 .firebaserc
+
+# 不要プラットフォーム
+linux/
+macos/
+windows/
