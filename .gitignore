@@ -40,3 +40,7 @@ app.*.map.json
 
 # FlutterFire: flutterfire configure で生成される FirebaseOptions（機密）
 lib/core/config/firebase/*_firebase_options.dart
+
+# Firebase機密ファイル
+google-services.json
+GoogleService-Info.plist
