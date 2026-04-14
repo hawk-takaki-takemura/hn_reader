@@ -5,9 +5,11 @@
 *.swp
 .DS_Store
 .atom/
+.build/
 .buildlog/
 .history
 .svn/
+.swiftpm/
 migrate_working_dir/
 
 # IntelliJ related
@@ -53,3 +55,8 @@ firebase.json
 linux/
 macos/
 windows/
+
+# Android 環境別Firebase設定
+android/app/src/dev/google-services.json
+android/app/src/stg/google-services.json
+android/app/src/prod/google-services.json
