@@ -44,3 +44,7 @@ lib/core/config/firebase/*_firebase_options.dart
 # Firebase機密ファイル
 google-services.json
 GoogleService-Info.plist
+
+# Firebase
+firebase.json
+.firebaserc
