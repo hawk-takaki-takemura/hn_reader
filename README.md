@@ -10,6 +10,12 @@ Hacker News の日本語リーダーアプリ（Flutter）
 
 ## セットアップ
 
+#### Firebase設定
+
+```bash
+cp firebase.json.example firebase.json
+```
+
 ### 1. Firebase設定ファイルの配置
 
 以下のファイルは Git 管理外のため、手動で配置が必要です。
