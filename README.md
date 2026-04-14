@@ -2,6 +2,8 @@
 
 Hacker News の日本語リーダーアプリ（Flutter）
 
+対応プラットフォームは iOS / Android / Web のみです。
+
 ## 環境
 
 - Flutter 3.29.2
