@@ -2,15 +2,15 @@
 .PHONY: fetch-config-dev fetch-config-stg fetch-config-prod
 .PHONY: run-dev run-stg run-prod
 
-# アプリ起動（環境は dart-define で渡す。main 側の受け取りは未実装でも可）
+# アプリ起動（Android/iOS の product flavor と Dart 向け dart-define）
 run-dev:
-	flutter run --dart-define=FLAVOR=dev
+	flutter run --flavor dev --dart-define=FLAVOR=dev
 
 run-stg:
-	flutter run --dart-define=FLAVOR=stg
+	flutter run --flavor stg --dart-define=FLAVOR=stg
 
 run-prod:
-	flutter run --dart-define=FLAVOR=prod
+	flutter run --flavor prod --dart-define=FLAVOR=prod
 
 # Remote Config デプロイ
 deploy-config-dev:
