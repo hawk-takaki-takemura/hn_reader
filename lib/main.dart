@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/config/app_config.dart';
+import 'features/feed/presentation/screens/feed_screen.dart';
 
 class App extends StatelessWidget {
   const App({super.key});
@@ -23,11 +24,7 @@ final _router = GoRouter(
   routes: [
     GoRoute(
       path: '/',
-      builder: (context, state) => const Scaffold(
-        body: Center(
-          child: Text('HN Reader 🚀'),
-        ),
-      ),
+      builder: (context, state) => const FeedScreen(),
     ),
   ],
 );

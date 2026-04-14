@@ -17,6 +17,7 @@ void main() async {
   );
 
   await Firebase.initializeApp(
+    name: 'stg',
     options: stg_fb.DefaultFirebaseOptions.currentPlatform,
   );
 

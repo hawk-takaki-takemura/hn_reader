@@ -1,16 +1,30 @@
 .PHONY: deploy-config-dev deploy-config-stg deploy-config-prod
 .PHONY: fetch-config-dev fetch-config-stg fetch-config-prod
-.PHONY: run-dev run-stg run-prod
+.PHONY: run-dev run-stg run-prod build-ios-dev build-ios-prod build-android-dev build-android-prod clean
 
-# アプリ起動（Android/iOS の product flavor と Dart 向け dart-define）
 run-dev:
-	flutter run --flavor dev --dart-define=FLAVOR=dev -t lib/main_dev.dart
+	flutter run --flavor Runner-dev -t lib/main_dev.dart
 
 run-stg:
-	flutter run --flavor stg --dart-define=FLAVOR=stg -t lib/main_stg.dart
+	flutter run --flavor Runner-stg -t lib/main_stg.dart
 
 run-prod:
-	flutter run --flavor prod --dart-define=FLAVOR=prod -t lib/main_prod.dart
+	flutter run --flavor Runner-prod -t lib/main_prod.dart
+
+build-ios-dev:
+	flutter build ipa --flavor Runner-dev -t lib/main_dev.dart
+
+build-ios-prod:
+	flutter build ipa --flavor Runner-prod -t lib/main_prod.dart
+
+build-android-dev:
+	flutter build appbundle --flavor dev -t lib/main_dev.dart
+
+build-android-prod:
+	flutter build appbundle --flavor prod -t lib/main_prod.dart
+
+clean:
+	flutter clean && flutter pub get
 
 # Remote Config デプロイ
 deploy-config-dev:
