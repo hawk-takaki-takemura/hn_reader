@@ -24,7 +24,8 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.takaki.hn_reader"
+        // Firebase Console の Android アプリ ID（google-services.json の package_name）と一致させる
+        applicationId = "com.takaki.hnreader"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -38,11 +39,13 @@ android {
         create("dev") {
             dimension = "environment"
             applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
             resValue("string", "app_name", "HN Reader Dev")
         }
         create("stg") {
             dimension = "environment"
             applicationIdSuffix = ".stg"
+            versionNameSuffix = "-stg"
             resValue("string", "app_name", "HN Reader Stg")
         }
         create("prod") {
