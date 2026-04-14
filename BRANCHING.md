@@ -1,29 +1,29 @@
-# Branching Strategy
+# ブランチ運用方針
 
-This repository uses a 3-branch workflow:
+このリポジトリでは、次の3ブランチ運用を採用します。
 
-- `dev`: daily development branch
-- `stg`: staging verification branch
-- `main`: release branch
+- `dev`: 日常開発ブランチ
+- `stg`: ステージング検証ブランチ
+- `main`: リリースブランチ
 
-## Merge Flow
+## マージフロー
 
-1. Create feature branch from `dev`
-   - Example: `feature/add-hn-api-client`
-2. Open PR to `dev`
-3. After integration checks, open PR from `dev` to `stg`
-4. Verify app behavior on staging
-5. Open PR from `stg` to `main` for release
+1. `dev` から機能ブランチを作成する  
+   - 例: `feature/add-hn-api-client`
+2. `dev` 向けにPRを作成する
+3. 統合確認後、`dev` から `stg` へPRを作成する
+4. ステージング環境で動作確認する
+5. リリース時に `stg` から `main` へPRを作成する
 
-## Naming Convention
+## 命名規則
 
-- Feature: `feature/<topic>`
-- Fix: `fix/<topic>`
-- Chore: `chore/<topic>`
+- 機能追加: `feature/<topic>`
+- 不具合修正: `fix/<topic>`
+- 雑務・保守: `chore/<topic>`
 
-## Recommended Rules
+## 推奨ルール
 
-- Never commit directly to `main`
-- Avoid direct commits to `stg` and `dev` when possible
-- Use pull requests for all branch promotions
-- Require at least one review before merging to `stg` and `main`
+- `main` への直接コミットは禁止
+- `stg` と `dev` への直接コミットも可能な限り避ける
+- ブランチ昇格はすべてPR経由で行う
+- `stg` と `main` はマージ前に最低1件のレビューを必須にする

@@ -1,22 +1,22 @@
-## Summary
-- What changed in this PR?
-- Why is this change needed?
+## 概要
+- このPRで何を変更したか
+- なぜこの変更が必要か
 
-## Target Branch
-- [ ] dev (daily development)
-- [ ] stg (staging verification)
-- [ ] main (release)
+## 対象ブランチ
+- [ ] dev（日常開発）
+- [ ] stg（ステージング検証）
+- [ ] main（リリース）
 
-## Checklist
-- [ ] Builds successfully on local environment
-- [ ] Tests are added or updated when needed
-- [ ] Existing tests pass
-- [ ] No unintended breaking changes
-- [ ] Documentation is updated when needed
+## チェックリスト
+- [ ] ローカル環境でビルドが成功する
+- [ ] 必要に応じてテストを追加・更新した
+- [ ] 既存テストが通過する
+- [ ] 意図しない破壊的変更がない
+- [ ] 必要に応じてドキュメントを更新した
 
-## Verification
-- [ ] Verified manually
-- [ ] Verified with tests
+## 検証
+- [ ] 手動で確認した
+- [ ] テストで確認した
 
-## Notes
-- Additional context, limitations, or follow-up tasks.
+## 補足
+- 追加の背景、制約、後続タスクなど
