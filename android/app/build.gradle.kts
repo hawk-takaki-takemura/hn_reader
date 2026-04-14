@@ -9,7 +9,7 @@ plugins {
 }
 
 android {
-    namespace = "com.takaki.hn_reader"
+    namespace = "com.takaki.hnreader"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
