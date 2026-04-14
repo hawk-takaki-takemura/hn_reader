@@ -9,6 +9,7 @@ Hacker News の日本語リーダーアプリ（Flutter）
 - Flutter 3.29.2
 - Dart 3.x
 - Firebase（dev / stg / prod）
+- アプリ識別子のベースは **`com.takaki.hnreader`**（iOS の Bundle ID・Android の `applicationId` / Gradle `namespace` を揃えています。dev / stg は `.dev` / `.stg` サフィックス）
 
 ## セットアップ
 

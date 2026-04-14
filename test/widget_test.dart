@@ -1,30 +1,49 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:hn_reader/core/config/app_config.dart';
+import 'package:hn_reader/features/feed/domain/entities/story.dart';
+import 'package:hn_reader/features/feed/presentation/providers/feed_provider.dart';
 import 'package:hn_reader/main.dart';
 
+/// ネットワークに依存せずフィードを即時表示する（Widget テスト用）
+class FakeFeedNotifier extends FeedNotifier {
+  @override
+  Future<List<Story>> build() async {
+    return const [
+      Story(
+        id: 1,
+        title: 'Smoke test story',
+        by: 'tester',
+        score: 42,
+        descendants: 7,
+        time: 1700000000,
+        type: 'story',
+      ),
+    ];
+  }
+}
+
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('トップ画面のスモークテスト', (WidgetTester tester) async {
+    AppConfig.initialize(
+      const AppConfig(
+        flavor: Flavor.dev,
+        appName: 'HN Reader Test',
+      ),
+    );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          feedProvider.overrideWith(FakeFeedNotifier.new),
+        ],
+        child: const App(),
+      ),
+    );
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.text('HN Reader'), findsOneWidget);
+    expect(find.text('Smoke test story'), findsOneWidget);
   });
 }

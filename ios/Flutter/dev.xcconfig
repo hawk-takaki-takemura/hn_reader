@@ -1,0 +1,4 @@
+#include "Generated.xcconfig"
+BUNDLE_ID_SUFFIX=.dev
+DISPLAY_NAME=HN Reader Dev
+FLAVOR=dev
