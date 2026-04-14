@@ -4,13 +4,13 @@
 
 # アプリ起動（Android/iOS の product flavor と Dart 向け dart-define）
 run-dev:
-	flutter run --flavor dev --dart-define=FLAVOR=dev
+	flutter run --flavor dev --dart-define=FLAVOR=dev -t lib/main_dev.dart
 
 run-stg:
-	flutter run --flavor stg --dart-define=FLAVOR=stg
+	flutter run --flavor stg --dart-define=FLAVOR=stg -t lib/main_stg.dart
 
 run-prod:
-	flutter run --flavor prod --dart-define=FLAVOR=prod
+	flutter run --flavor prod --dart-define=FLAVOR=prod -t lib/main_prod.dart
 
 # Remote Config デプロイ
 deploy-config-dev:
