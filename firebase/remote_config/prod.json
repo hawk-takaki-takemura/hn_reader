@@ -1,0 +1,35 @@
+{
+  "parameters": {
+    "translation_enabled": {
+      "defaultValue": {
+        "value": "true"
+      },
+      "valueType": "BOOLEAN",
+      "description": "翻訳機能のON/OFF制御"
+    },
+    "free_summary_limit": {
+      "defaultValue": {
+        "value": "3"
+      },
+      "valueType": "NUMBER",
+      "description": "無料プランの1日要約上限"
+    },
+    "ads_enabled": {
+      "defaultValue": {
+        "value": "true"
+      },
+      "valueType": "BOOLEAN",
+      "description": "広告表示のON/OFF（prodはtrue）"
+    },
+    "maintenance_mode": {
+      "defaultValue": {
+        "value": "false"
+      },
+      "valueType": "BOOLEAN",
+      "description": "メンテナンス画面の表示制御"
+    }
+  },
+  "version": {
+    "description": "initial config"
+  }
+}
