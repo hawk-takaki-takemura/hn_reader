@@ -9,7 +9,7 @@ plugins {
 }
 
 android {
-    namespace = "com.takaki.hnreader"
+    namespace = "com.takaki.yomi"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -25,7 +25,7 @@ android {
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         // Firebase Console の Android アプリ ID（google-services.json の package_name）と一致させる
-        applicationId = "com.takaki.hnreader"
+        applicationId = "com.takaki.yomi"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -40,17 +40,17 @@ android {
             dimension = "environment"
             applicationIdSuffix = ".dev"
             versionNameSuffix = "-dev"
-            resValue("string", "app_name", "HN Reader Dev")
+            resValue("string", "app_name", "Yomi Dev")
         }
         create("stg") {
             dimension = "environment"
             applicationIdSuffix = ".stg"
             versionNameSuffix = "-stg"
-            resValue("string", "app_name", "HN Reader Stg")
+            resValue("string", "app_name", "Yomi Stg")
         }
         create("prod") {
             dimension = "environment"
-            resValue("string", "app_name", "HN Reader")
+            resValue("string", "app_name", "Yomi")
         }
     }
 

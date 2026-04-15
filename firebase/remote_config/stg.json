@@ -19,7 +19,7 @@
         "value": "false"
       },
       "valueType": "BOOLEAN",
-      "description": "広告表示のON/OFF（stgは常にfalse）"
+      "description": "広告表示のON/OFF（devは常にfalse）"
     },
     "maintenance_mode": {
       "defaultValue": {

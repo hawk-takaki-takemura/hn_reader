@@ -1,4 +1,4 @@
 #include "Generated.xcconfig"
 BUNDLE_ID_SUFFIX=
-DISPLAY_NAME=HN Reader
+DISPLAY_NAME=Yomi
 FLAVOR=prod
