@@ -49,16 +49,28 @@ run-prod:
 	fi
 
 build-ios-dev:
-	flutter build ipa --flavor Runner-dev -t lib/main_dev.dart
+	flutter build ipa \
+		--flavor Runner-dev \
+		-t lib/main_dev.dart \
+		--dart-define-from-file=.env
 
 build-ios-prod:
-	flutter build ipa --flavor Runner-prod -t lib/main_prod.dart
+	flutter build ipa \
+		--flavor Runner-prod \
+		-t lib/main_prod.dart \
+		--dart-define-from-file=.env
 
 build-android-dev:
-	flutter build appbundle --flavor dev -t lib/main_dev.dart
+	flutter build appbundle \
+		--flavor dev \
+		-t lib/main_dev.dart \
+		--dart-define-from-file=.env
 
 build-android-prod:
-	flutter build appbundle --flavor prod -t lib/main_prod.dart
+	flutter build appbundle \
+		--flavor prod \
+		-t lib/main_prod.dart \
+		--dart-define-from-file=.env
 
 clean:
 	flutter clean && flutter pub get
