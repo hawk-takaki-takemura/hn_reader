@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../translation/presentation/providers/translation_provider.dart';
 import '../providers/feed_provider.dart';
 import '../widgets/story_card.dart';
 
@@ -32,21 +33,40 @@ class FeedScreen extends ConsumerWidget {
           message: e.toString(),
           onRetry: () => ref.read(feedProvider.notifier).refresh(),
         ),
-        data: (stories) => RefreshIndicator(
-          onRefresh: () => ref.read(feedProvider.notifier).refresh(),
-          child: ListView.builder(
-            itemCount: stories.length,
-            itemBuilder: (context, index) {
-              final story = stories[index];
-              return StoryCard(
-                story: story,
-                onTap: () {
-                  // TODO: 記事詳細へ遷移
+        data: (stories) {
+          final translatedAsync =
+              ref.watch(translatedStoriesProvider(stories));
+          return translatedAsync.when(
+            loading: () => const _LoadingList(),
+            error: (e, _) => RefreshIndicator(
+              onRefresh: () => ref.read(feedProvider.notifier).refresh(),
+              child: ListView.builder(
+                itemCount: stories.length,
+                itemBuilder: (context, index) => StoryCard(
+                  story: stories[index],
+                  onTap: () {
+                    // TODO: 記事詳細へ遷移
+                  },
+                ),
+              ),
+            ),
+            data: (translatedStories) => RefreshIndicator(
+              onRefresh: () => ref.read(feedProvider.notifier).refresh(),
+              child: ListView.builder(
+                itemCount: translatedStories.length,
+                itemBuilder: (context, index) {
+                  final story = translatedStories[index];
+                  return StoryCard(
+                    story: story,
+                    onTap: () {
+                      // TODO: 記事詳細へ遷移
+                    },
+                  );
                 },
-              );
-            },
-          ),
-        ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

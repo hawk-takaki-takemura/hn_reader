@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hn_reader/core/config/app_config.dart';
 import 'package:hn_reader/features/feed/domain/entities/story.dart';
 import 'package:hn_reader/features/feed/presentation/providers/feed_provider.dart';
+import 'package:hn_reader/features/translation/presentation/providers/translation_provider.dart';
 import 'package:hn_reader/main.dart';
 
 /// ネットワークに依存せずフィードを即時表示する（Widget テスト用）
@@ -37,6 +38,7 @@ void main() {
       ProviderScope(
         overrides: [
           feedProvider.overrideWith(FakeFeedNotifier.new),
+          translationEnabledProvider.overrideWith((ref) => false),
         ],
         child: const App(),
       ),
