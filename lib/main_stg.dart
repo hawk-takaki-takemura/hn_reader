@@ -5,6 +5,8 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import 'core/config/app_config.dart';
 import 'core/config/firebase/stg_firebase_options.dart' as stg_fb;
+import 'core/firebase/app_check_bootstrap.dart';
+import 'core/remote_config/remote_config_bootstrap.dart';
 import 'main.dart';
 
 void main() async {
@@ -17,10 +19,13 @@ void main() async {
     ),
   );
 
-  await Firebase.initializeApp(
+  final app = await Firebase.initializeApp(
     name: 'stg',
     options: stg_fb.DefaultFirebaseOptions.currentPlatform,
   );
+
+  await bootstrapAppCheck(app);
+  await bootstrapRemoteConfig(app);
 
   await MobileAds.instance.initialize();
 

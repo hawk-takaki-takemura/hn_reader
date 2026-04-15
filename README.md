@@ -41,6 +41,14 @@ cp ios/Runner/GoogleService-Info.plist.example \
 
 Firebase Console から実際の値を取得して上書きしてください。
 
+加えて、flavor ごとに以下のファイルを配置してください。
+
+- `ios/Runner/GoogleService-Info-dev.plist` (`com.takaki.yomi.dev`)
+- `ios/Runner/GoogleService-Info-stg.plist` (`com.takaki.yomi.stg`)
+- `ios/Runner/GoogleService-Info-prod.plist` (`com.takaki.yomi`)
+
+ビルド時に flavor 名に応じた plist が `GoogleService-Info.plist` としてコピーされます。
+
 ### 2. FlutterFire CLI で再生成
 
 ```bash
@@ -94,3 +102,24 @@ dev         開発統合ブランチ
 feature/*   機能開発
 fix/*       バグ修正
 ```
+
+## 翻訳バックエンド運用（短縮版）
+
+翻訳はクライアント直叩きではなく、`yomi-backend/functions` の Callable
+`translateStories` を経由します。
+
+- Secret は Flutter 側に持たせず、Functions 側の `ANTHROPIC_API_KEY` を使用
+- App Check を有効化した状態で動かす
+- Remote Config で切り替える
+  - `translation_backend=remote` で Functions 経由
+  - `translation_backend=local` で翻訳スキップ（原文表示）
+
+本番切替・ロールバック手順は
+`/Users/takaki/Projects/yomi-backend/functions/RUNBOOK.md` を参照してください。
+
+## バックログ（リリース前に実施）
+
+- App Check の最終確認（stg/prod、debug token の整理）
+- Functions ランタイム / `firebase-functions` の更新（非互換に注意）
+
+詳細は `RUNBOOK.md` の Backlog セクションを参照してください。

@@ -7,6 +7,13 @@
       "valueType": "BOOLEAN",
       "description": "翻訳機能のON/OFF制御"
     },
+    "translation_backend": {
+      "defaultValue": {
+        "value": "remote"
+      },
+      "valueType": "STRING",
+      "description": "翻訳バックエンド: remote=Callable+Functions, local=翻訳スキップ"
+    },
     "free_summary_limit": {
       "defaultValue": {
         "value": "3"

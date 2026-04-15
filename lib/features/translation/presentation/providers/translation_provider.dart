@@ -1,36 +1,28 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/config/app_config.dart';
+import '../../../../core/remote_config/remote_config_providers.dart';
 import '../../../../core/utils/locale_utils.dart';
 import '../../../feed/domain/entities/story.dart';
-import '../../data/datasources/claude_api_datasource.dart';
-import '../../data/datasources/translation_cache_datasource.dart';
+import '../../data/datasources/translation_data_source.dart';
+import '../../data/datasources/translation_noop_data_source.dart';
+import '../../data/datasources/translation_remote_data_source.dart';
 import '../../data/repositories/translation_repository_impl.dart';
 import '../../domain/repositories/translation_repository.dart';
 
 // ---- DI ----
 
-final claudeApiDataSourceProvider = Provider<ClaudeApiDataSource>((ref) {
-  return ClaudeApiDataSourceImpl();
-});
-
-final translationCacheDataSourceProvider =
-    Provider<TranslationCacheDataSource>((ref) {
-  final app = Firebase.app(AppConfig.instance.flavor.name);
-  return TranslationCacheDataSourceImpl(
-    firestore: FirebaseFirestore.instanceFor(app: app),
-    languageCode: LocaleUtils.deviceLanguageCode,
-  );
+final translationDataSourceProvider = Provider<TranslationDataSource>((ref) {
+  if (ref.watch(translationBackendProvider) != 'remote') {
+    return const TranslationNoopDataSource();
+  }
+  return TranslationRemoteDataSource();
 });
 
 final translationRepositoryProvider =
     Provider<TranslationRepository>((ref) {
   return TranslationRepositoryImpl(
-    claudeApi: ref.watch(claudeApiDataSourceProvider),
-    cache: ref.watch(translationCacheDataSourceProvider),
+    remote: ref.watch(translationDataSourceProvider),
   );
 });
 

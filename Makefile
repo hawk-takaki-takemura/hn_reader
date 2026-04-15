@@ -2,12 +2,8 @@
 .PHONY: fetch-config-dev fetch-config-stg fetch-config-prod
 .PHONY: run-dev run-stg run-prod build-ios-dev build-ios-prod build-android-dev build-android-prod clean
 
-# CLAUDE_API_KEY の渡し方（String.fromEnvironment 用）
-# 1) 推奨: プロジェクト直下に .env（CLAUDE_API_KEY=...）を置く → Flutter が --dart-define-from-file で読む
-# 2) .env が無いとき: CLAUDE_API_KEY=sk-ant-... make run-dev（シェルから Make に渡る環境変数を --dart-define に埋め込む）
-#
-# 注意: Xcode / IDE の Run だけでは dart-define が付かずキーは空になります。ターミナルから make か、
-#       flutter run ... --dart-define-from-file=.env を使ってください。
+# .env を使う場合のみ dart-define-from-file を付与します。
+# （Claude キーはクライアントで保持しません）
 
 run-dev:
 	@if [ -f .env ]; then \
@@ -18,8 +14,7 @@ run-dev:
 	else \
 		flutter run \
 			--flavor Runner-dev \
-			-t lib/main_dev.dart \
-			--dart-define=CLAUDE_API_KEY="$(CLAUDE_API_KEY)"; \
+			-t lib/main_dev.dart; \
 	fi
 
 run-stg:
@@ -31,8 +26,7 @@ run-stg:
 	else \
 		flutter run \
 			--flavor Runner-stg \
-			-t lib/main_stg.dart \
-			--dart-define=CLAUDE_API_KEY="$(CLAUDE_API_KEY)"; \
+			-t lib/main_stg.dart; \
 	fi
 
 run-prod:
@@ -44,8 +38,7 @@ run-prod:
 	else \
 		flutter run \
 			--flavor Runner-prod \
-			-t lib/main_prod.dart \
-			--dart-define=CLAUDE_API_KEY="$(CLAUDE_API_KEY)"; \
+			-t lib/main_prod.dart; \
 	fi
 
 build-ios-dev:

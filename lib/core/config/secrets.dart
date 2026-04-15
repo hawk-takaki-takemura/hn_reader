@@ -1,10 +1,6 @@
 class Secrets {
   Secrets._();
 
-  // Claude API Key
-  static const String claudeApiKey =
-      String.fromEnvironment('CLAUDE_API_KEY', defaultValue: '');
-
   // AdMob App IDs
   static const String admobAppIdAndroid =
       String.fromEnvironment('ADMOB_APP_ID_ANDROID', defaultValue: '');

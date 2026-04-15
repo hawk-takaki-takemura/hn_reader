@@ -1,72 +1,41 @@
 import '../../domain/entities/translation.dart';
 import '../../domain/repositories/translation_repository.dart';
-import '../datasources/claude_api_datasource.dart';
-import '../datasources/translation_cache_datasource.dart';
-import '../models/translation_model.dart';
+import '../datasources/translation_data_source.dart';
 
 class TranslationRepositoryImpl implements TranslationRepository {
-  final ClaudeApiDataSource _claudeApi;
-  final TranslationCacheDataSource _cache;
+  final TranslationDataSource _remote;
 
   TranslationRepositoryImpl({
-    required ClaudeApiDataSource claudeApi,
-    required TranslationCacheDataSource cache,
-  }) : _claudeApi = claudeApi,
-       _cache = cache;
+    required TranslationDataSource remote,
+  }) : _remote = remote;
 
   @override
-  Future<Translation?> getCachedTranslation(int storyId) async {
-    final cached = await _cache.getTranslation(storyId);
-    if (cached == null || cached.isExpired) return null;
-    return cached;
-  }
+  Future<Translation?> getCachedTranslation(int storyId) async => null;
 
   @override
   Future<Translation> translate(int storyId, String title) async {
-    final cached = await getCachedTranslation(storyId);
-    if (cached != null) return cached;
-
-    final translatedTitle = await _claudeApi.translateTitle(title);
-    final translation = TranslationModel(
+    final translatedTitle = await _remote.translateTitle(title);
+    return Translation(
       storyId: storyId,
       translatedTitle: translatedTitle,
       cachedAt: DateTime.now(),
     );
-
-    await _cache.saveTranslation(translation);
-    return translation;
   }
 
   @override
   Future<List<Translation>> translateBatch(
     Map<int, String> stories,
   ) async {
-    final cached =
-        await _cache.getTranslations(stories.keys.toList());
-
-    final needTranslation = <int, String>{};
-    for (final entry in stories.entries) {
-      final cachedItem = cached[entry.key];
-      if (cachedItem == null || cachedItem.isExpired) {
-        needTranslation[entry.key] = entry.value;
-      }
-    }
-
-    if (needTranslation.isNotEmpty) {
-      final translated =
-          await _claudeApi.translateTitles(needTranslation);
-
-      for (final entry in translated.entries) {
-        final model = TranslationModel(
-          storyId: entry.key,
-          translatedTitle: entry.value,
-          cachedAt: DateTime.now(),
-        );
-        await _cache.saveTranslation(model);
-        cached[entry.key] = model;
-      }
-    }
-
-    return cached.values.toList();
+    final translated = await _remote.translateTitles(stories);
+    final now = DateTime.now();
+    return translated.entries
+        .map(
+          (entry) => Translation(
+            storyId: entry.key,
+            translatedTitle: entry.value,
+            cachedAt: now,
+          ),
+        )
+        .toList();
   }
 }
