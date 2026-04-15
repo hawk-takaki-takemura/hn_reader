@@ -26,10 +26,10 @@ class TranslationRepositoryImpl implements TranslationRepository {
     final cached = await getCachedTranslation(storyId);
     if (cached != null) return cached;
 
-    final titleJa = await _claudeApi.translateTitle(title);
+    final translatedTitle = await _claudeApi.translateTitle(title);
     final translation = TranslationModel(
       storyId: storyId,
-      titleJa: titleJa,
+      translatedTitle: translatedTitle,
       cachedAt: DateTime.now(),
     );
 
@@ -59,7 +59,7 @@ class TranslationRepositoryImpl implements TranslationRepository {
       for (final entry in translated.entries) {
         final model = TranslationModel(
           storyId: entry.key,
-          titleJa: entry.value,
+          translatedTitle: entry.value,
           cachedAt: DateTime.now(),
         );
         await _cache.saveTranslation(model);

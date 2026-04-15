@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../../core/config/secrets.dart';
+import '../../../../core/utils/locale_utils.dart';
 
 abstract class ClaudeApiDataSource {
   Future<String> translateTitle(String title);
@@ -37,6 +38,7 @@ class ClaudeApiDataSourceImpl implements ClaudeApiDataSource {
 
   @override
   Future<String> translateTitle(String title) async {
+    final langCode = LocaleUtils.deviceLanguageCode;
     final response = await _dio.post<Map<String, dynamic>>(
       '/v1/messages',
       data: {
@@ -46,10 +48,10 @@ class ClaudeApiDataSourceImpl implements ClaudeApiDataSource {
           {
             'role': 'user',
             'content':
-                '''以下の英語タイトルを自然な日本語に翻訳してください。
-翻訳結果のみ返してください。説明は不要です。
+                '''Translate the following English title to $langCode language.
+Return only the translated title, no explanation.
 
-タイトル: $title''',
+Title: $title''',
           }
         ],
       },
@@ -66,8 +68,9 @@ class ClaudeApiDataSourceImpl implements ClaudeApiDataSource {
   Future<Map<int, String>> translateTitles(
     Map<int, String> titles,
   ) async {
+    final langCode = LocaleUtils.deviceLanguageCode;
     final titlesText = titles.entries
-        .map((e) => '${e.key}: ${e.value}')
+        .map((e) => 'ID: ${e.key}: ${e.value}')
         .join('\n');
 
     final response = await _dio.post<Map<String, dynamic>>(
@@ -79,10 +82,9 @@ class ClaudeApiDataSourceImpl implements ClaudeApiDataSource {
           {
             'role': 'user',
             'content':
-                '''以下の英語タイトル一覧を日本語に翻訳してください。
-各行は必ず次の形式にしてください（先頭に ID: を付けること）:
-ID: <数値ID>: <日本語タイトル>
-余計な説明や見出しは付けないでください。
+                '''Translate the following English titles to $langCode language.
+Return ONLY in the format "ID: <number>: <translated title>", one per line.
+No explanation needed.
 
 $titlesText''',
           }
@@ -123,8 +125,8 @@ $titlesText''',
   final id = int.tryParse(idStr);
   if (id == null) return null;
 
-  final titleJa = line.substring(sep + 2).trim();
-  if (titleJa.isEmpty) return null;
+  final translatedTitle = line.substring(sep + 2).trim();
+  if (translatedTitle.isEmpty) return null;
 
-  return (id, titleJa);
+  return (id, translatedTitle);
 }

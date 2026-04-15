@@ -4,7 +4,7 @@ class StoryModel extends Story {
   const StoryModel({
     required super.id,
     required super.title,
-    super.titleJa,
+    super.translatedTitle,
     super.url,
     required super.by,
     required super.score,
@@ -30,7 +30,7 @@ class StoryModel extends Story {
     return {
       'id': id,
       'title': title,
-      'title_ja': titleJa,
+      'translated_title': translatedTitle,
       'url': url,
       'by': by,
       'score': score,
@@ -40,11 +40,11 @@ class StoryModel extends Story {
     };
   }
 
-  StoryModel copyWith({String? titleJa}) {
+  StoryModel copyWith({String? translatedTitle}) {
     return StoryModel(
       id: id,
       title: title,
-      titleJa: titleJa ?? this.titleJa,
+      translatedTitle: translatedTitle ?? this.translatedTitle,
       url: url,
       by: by,
       score: score,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/config/app_config.dart';
+import 'core/theme/app_theme.dart';
 import 'features/feed/presentation/screens/feed_screen.dart';
 
 class App extends StatelessWidget {
@@ -12,10 +13,9 @@ class App extends StatelessWidget {
     return MaterialApp.router(
       title: AppConfig.instance.appName,
       routerConfig: _router,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepOrange),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.system,
     );
   }
 }

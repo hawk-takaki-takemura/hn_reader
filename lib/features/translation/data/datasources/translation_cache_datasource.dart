@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 
 import '../../../../core/config/app_config.dart';
+import '../../../../core/utils/locale_utils.dart';
 import '../models/translation_model.dart';
 
 abstract class TranslationCacheDataSource {
@@ -14,21 +15,30 @@ abstract class TranslationCacheDataSource {
 
 class TranslationCacheDataSourceImpl implements TranslationCacheDataSource {
   final FirebaseFirestore _firestore;
+  final String _languageCode;
 
-  static const String _collection = 'translations';
+  static const String _baseCollection = 'translations';
+  static const String _storiesSubcollection = 'stories';
 
-  TranslationCacheDataSourceImpl({FirebaseFirestore? firestore})
-      : _firestore = firestore ??
+  TranslationCacheDataSourceImpl({
+    FirebaseFirestore? firestore,
+    String? languageCode,
+  })  : _firestore = firestore ??
             FirebaseFirestore.instanceFor(
               app: Firebase.app(AppConfig.instance.flavor.name),
-            );
+            ),
+        _languageCode = languageCode ?? LocaleUtils.deviceLanguageCode;
+
+  /// `translations/{languageCode}/stories/{storyId}`
+  CollectionReference<Map<String, dynamic>> get _storiesCollection =>
+      _firestore
+          .collection(_baseCollection)
+          .doc(_languageCode)
+          .collection(_storiesSubcollection);
 
   @override
   Future<TranslationModel?> getTranslation(int storyId) async {
-    final doc = await _firestore
-        .collection(_collection)
-        .doc(storyId.toString())
-        .get();
+    final doc = await _storiesCollection.doc(storyId.toString()).get();
 
     if (!doc.exists || doc.data() == null) return null;
     return TranslationModel.fromJson(
@@ -38,8 +48,7 @@ class TranslationCacheDataSourceImpl implements TranslationCacheDataSource {
 
   @override
   Future<void> saveTranslation(TranslationModel translation) async {
-    await _firestore
-        .collection(_collection)
+    await _storiesCollection
         .doc(translation.storyId.toString())
         .set(translation.toJson());
   }
@@ -61,8 +70,7 @@ class TranslationCacheDataSourceImpl implements TranslationCacheDataSource {
     }
 
     for (final chunk in chunks) {
-      final snapshot = await _firestore
-          .collection(_collection)
+      final snapshot = await _storiesCollection
           .where(
             FieldPath.documentId,
             whereIn: chunk.map((id) => id.toString()).toList(),

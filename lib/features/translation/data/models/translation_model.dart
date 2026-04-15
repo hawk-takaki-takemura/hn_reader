@@ -5,7 +5,7 @@ import '../../domain/entities/translation.dart';
 class TranslationModel extends Translation {
   const TranslationModel({
     required super.storyId,
-    required super.titleJa,
+    required super.translatedTitle,
     required super.cachedAt,
   });
 
@@ -15,9 +15,11 @@ class TranslationModel extends Translation {
         ? cachedRaw.toDate()
         : DateTime.parse(cachedRaw as String);
 
+    final titleRaw = json['translated_title'] ?? json['title_ja'];
+
     return TranslationModel(
       storyId: (json['story_id'] as num).toInt(),
-      titleJa: json['title_ja'] as String,
+      translatedTitle: titleRaw as String,
       cachedAt: cachedAt,
     );
   }
@@ -25,7 +27,7 @@ class TranslationModel extends Translation {
   Map<String, dynamic> toJson() {
     return {
       'story_id': storyId,
-      'title_ja': titleJa,
+      'translated_title': translatedTitle,
       'cached_at': Timestamp.fromDate(cachedAt),
     };
   }

@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/utils/locale_utils.dart';
 import '../../domain/entities/story.dart';
 
 class StoryCard extends StatelessWidget {
   final Story story;
   final VoidCallback onTap;
+  final bool isRead;
 
   const StoryCard({
     super.key,
     required this.story,
     required this.onTap,
+    this.isRead = false,
   });
 
   @override
@@ -32,7 +35,6 @@ class StoryCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ドメイン
             if (story.domain != null)
               Text(
                 story.domain!,
@@ -41,20 +43,37 @@ class StoryCard extends StatelessWidget {
                     ),
               ),
             const SizedBox(height: 4),
-
-            // タイトル
-            Text(
-              story.displayTitle,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    height: 1.4,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    story.displayTitle,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          height: 1.4,
+                          color: isRead
+                              ? Theme.of(context).colorScheme.onSurface.withValues(
+                                    alpha: Theme.of(context).brightness ==
+                                            Brightness.light
+                                        ? 0.52
+                                        : 0.38,
+                                  )
+                              : null,
+                        ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
                   ),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
+                ),
+                if (story.translatedTitle != null) ...[
+                  const SizedBox(width: 6),
+                  _LanguageBadge(
+                    languageCode: LocaleUtils.languageLabel,
+                  ),
+                ],
+              ],
             ),
             const SizedBox(height: 8),
-
-            // メタ情報（スコア・コメント・投稿者・時刻）
             Row(
               children: [
                 _MetaChip(
@@ -89,6 +108,36 @@ class StoryCard extends StatelessWidget {
     if (diff.inMinutes < 60) return '${diff.inMinutes}分前';
     if (diff.inHours < 24) return '${diff.inHours}時間前';
     return '${diff.inDays}日前';
+  }
+}
+
+class _LanguageBadge extends StatelessWidget {
+  final String languageCode;
+
+  const _LanguageBadge({required this.languageCode});
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(
+        color: primary.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: primary.withValues(alpha: 0.3),
+          width: 0.5,
+        ),
+      ),
+      child: Text(
+        languageCode,
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+          color: primary,
+        ),
+      ),
+    );
   }
 }
 
