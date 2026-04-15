@@ -1,11 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:hn_reader/core/config/app_config.dart';
-import 'package:hn_reader/features/feed/domain/entities/story.dart';
-import 'package:hn_reader/features/feed/presentation/providers/feed_provider.dart';
-import 'package:hn_reader/features/translation/presentation/providers/translation_provider.dart';
-import 'package:hn_reader/main.dart';
+import 'package:yomi/core/config/app_config.dart';
+import 'package:yomi/features/feed/domain/entities/story.dart';
+import 'package:yomi/features/feed/presentation/providers/feed_provider.dart';
+import 'package:yomi/features/translation/presentation/providers/translation_provider.dart';
+import 'package:yomi/main.dart';
 
 /// ネットワークに依存せずフィードを即時表示する（Widget テスト用）
 class FakeFeedNotifier extends FeedNotifier {
@@ -30,7 +30,7 @@ void main() {
     AppConfig.initialize(
       const AppConfig(
         flavor: Flavor.dev,
-        appName: 'HN Reader Test',
+        appName: 'Yomi Test',
       ),
     );
 
@@ -45,7 +45,7 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-    expect(find.text('HN Reader'), findsOneWidget);
+    expect(find.text('Yomi'), findsOneWidget);
     expect(find.text('Smoke test story'), findsOneWidget);
   });
 }
