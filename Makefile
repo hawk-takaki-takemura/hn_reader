@@ -1,9 +1,12 @@
 .PHONY: deploy-config-dev deploy-config-stg deploy-config-prod
 .PHONY: fetch-config-dev fetch-config-stg fetch-config-prod
-.PHONY: run-dev run-stg run-prod build-ios-dev build-ios-prod build-android-dev build-android-prod clean
+.PHONY: run-dev run-stg run-prod run-prod-sim build-ios-dev build-ios-prod build-android-dev build-android-prod clean
 
 # .env を使う場合のみ dart-define-from-file を付与します。
 # （Claude キーはクライアントで保持しません）
+
+# iOS シミュレータ名（`flutter devices` で確認）。Runner-prod の再現実行用。
+IOS_SIM ?= iPhone 16
 
 run-dev:
 	@if [ -f .env ]; then \
@@ -39,6 +42,20 @@ run-prod:
 		flutter run \
 			--flavor Runner-prod \
 			-t lib/main_prod.dart; \
+	fi
+
+run-prod-sim:
+	@if [ -f .env ]; then \
+		flutter run \
+			--flavor Runner-prod \
+			-t lib/main_prod.dart \
+			-d "$(IOS_SIM)" \
+			--dart-define-from-file=.env; \
+	else \
+		flutter run \
+			--flavor Runner-prod \
+			-t lib/main_prod.dart \
+			-d "$(IOS_SIM)"; \
 	fi
 
 build-ios-dev:

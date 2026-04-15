@@ -15,6 +15,7 @@ class NativeAdWidget extends ConsumerStatefulWidget {
 class _NativeAdWidgetState extends ConsumerState<NativeAdWidget> {
   NativeAd? _nativeAd;
   bool _isLoaded = false;
+  bool _disposed = false;
 
   @override
   void initState() {
@@ -32,11 +33,21 @@ class _NativeAdWidgetState extends ConsumerState<NativeAdWidget> {
       request: const AdRequest(),
       listener: NativeAdListener(
         onAdLoaded: (_) {
-          if (mounted) setState(() => _isLoaded = true);
+          if (_disposed || !mounted) return;
+          setState(() => _isLoaded = true);
         },
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
-          _nativeAd = null;
+          if (_disposed) return;
+          if (mounted) {
+            setState(() {
+              _nativeAd = null;
+              _isLoaded = false;
+            });
+          } else {
+            _nativeAd = null;
+            _isLoaded = false;
+          }
         },
       ),
     )..load();
@@ -44,7 +55,9 @@ class _NativeAdWidgetState extends ConsumerState<NativeAdWidget> {
 
   @override
   void dispose() {
+    _disposed = true;
     _nativeAd?.dispose();
+    _nativeAd = null;
     super.dispose();
   }
 

@@ -390,7 +390,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -e\nFLAVOR_NAME=\"${FLAVOR:-prod}\"\nSOURCE_PLIST=\"${PROJECT_DIR}/Runner/GoogleService-Info-${FLAVOR_NAME}.plist\"\nTARGET_PLIST=\"${PROJECT_DIR}/Runner/GoogleService-Info.plist\"\nif [ -f \"${SOURCE_PLIST}\" ]; then\n  cp \"${SOURCE_PLIST}\" \"${TARGET_PLIST}\"\n  echo \"Using Firebase plist: GoogleService-Info-${FLAVOR_NAME}.plist\"\nelse\n  echo \"warning: Missing ${SOURCE_PLIST}. Falling back to existing GoogleService-Info.plist\"\nfi\n/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" build";
+			shellScript = "set -e\nFLAVOR_RAW=\"${FLAVOR:-prod}\"\nFLAVOR_NAME=\"${FLAVOR_RAW}\"\ncase \"${FLAVOR_RAW}\" in\n  Runner-dev|runner-dev) FLAVOR_NAME=dev ;;\n  Runner-stg|runner-stg) FLAVOR_NAME=stg ;;\n  Runner-prod|runner-prod) FLAVOR_NAME=prod ;;\nesac\nSOURCE_PLIST=\"${PROJECT_DIR}/Runner/GoogleService-Info-${FLAVOR_NAME}.plist\"\nTARGET_PLIST=\"${PROJECT_DIR}/Runner/GoogleService-Info.plist\"\nif [ -f \"${SOURCE_PLIST}\" ]; then\n  cp \"${SOURCE_PLIST}\" \"${TARGET_PLIST}\"\n  echo \"Using Firebase plist: GoogleService-Info-${FLAVOR_NAME}.plist (FLAVOR=${FLAVOR_RAW})\"\nelse\n  echo \"warning: Missing ${SOURCE_PLIST}. Falling back to existing GoogleService-Info.plist\"\nfi\n/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" build";
 		};
 		B32874128950BD260D641B4F /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -1132,7 +1132,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.takaki.yomi.dev;
+				PRODUCT_BUNDLE_IDENTIFIER = com.takaki.yomi;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";

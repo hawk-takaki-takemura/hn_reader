@@ -36,8 +36,18 @@ final translatedStoriesProvider =
 
   debugPrint('=== translation enabled: $enabled');
   debugPrint('=== stories count: ${stories.length}');
+  debugPrint(
+    '=== translation locale: lang=${LocaleUtils.deviceLanguageCode} '
+    'needsTranslation=${LocaleUtils.needsTranslation}',
+  );
 
-  if (!LocaleUtils.needsTranslation) return stories;
+  if (!LocaleUtils.needsTranslation) {
+    debugPrint(
+      '=== translation skipped: English UI does not request title translation '
+      '(set emulator language to ja etc. to test Callable + App Check)',
+    );
+    return stories;
+  }
 
   if (!enabled) return stories;
 
