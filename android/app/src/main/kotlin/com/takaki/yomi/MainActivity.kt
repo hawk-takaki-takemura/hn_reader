@@ -1,4 +1,4 @@
-package com.takaki.hnreader
+package com.takaki.yomi
 
 import io.flutter.embedding.android.FlutterActivity
 

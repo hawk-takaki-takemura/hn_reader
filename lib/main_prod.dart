@@ -12,7 +12,7 @@ void main() async {
   AppConfig.initialize(
     const AppConfig(
       flavor: Flavor.prod,
-      appName: 'HN Reader',
+      appName: 'Yomi',
     ),
   );
 

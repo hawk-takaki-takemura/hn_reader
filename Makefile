@@ -63,34 +63,22 @@ build-android-prod:
 clean:
 	flutter clean && flutter pub get
 
-# Remote Config デプロイ
+# Remote Config デプロイ（Firebase CLI 15 では remoteconfig:update が無いため deploy を使用）
 deploy-config-dev:
-	firebase remoteconfig:update \
-	  --project hn-reader-dev \
-	  firebase/remote_config/dev.json
+	firebase deploy --only remoteconfig --project yomi-dev -c firebase.rc.dev.json
 
 deploy-config-stg:
-	firebase remoteconfig:update \
-	  --project hn-reader-stg \
-	  firebase/remote_config/stg.json
+	firebase deploy --only remoteconfig --project yomi-stg -c firebase.rc.stg.json
 
 deploy-config-prod:
-	firebase remoteconfig:update \
-	  --project hn-reader-prod \
-	  firebase/remote_config/prod.json
+	firebase deploy --only remoteconfig --project yomi-prod -c firebase.rc.prod.json
 
 # 現在の設定を取得（確認用）
 fetch-config-dev:
-	firebase remoteconfig:get \
-	  --project hn-reader-dev \
-	  --output firebase/remote_config/dev_current.json
+	firebase remoteconfig:get --project yomi-dev -o firebase/remote_config/dev_current.json
 
 fetch-config-stg:
-	firebase remoteconfig:get \
-	  --project hn-reader-stg \
-	  --output firebase/remote_config/stg_current.json
+	firebase remoteconfig:get --project yomi-stg -o firebase/remote_config/stg_current.json
 
 fetch-config-prod:
-	firebase remoteconfig:get \
-	  --project hn-reader-prod \
-	  --output firebase/remote_config/prod_current.json
+	firebase remoteconfig:get --project yomi-prod -o firebase/remote_config/prod_current.json
