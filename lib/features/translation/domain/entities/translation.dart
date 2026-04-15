@@ -1,11 +1,11 @@
 class Translation {
   final int storyId;
-  final String titleJa;
+  final String translatedTitle;
   final DateTime cachedAt;
 
   const Translation({
     required this.storyId,
-    required this.titleJa,
+    required this.translatedTitle,
     required this.cachedAt,
   });
 

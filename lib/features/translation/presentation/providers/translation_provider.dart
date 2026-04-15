@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/config/app_config.dart';
+import '../../../../core/utils/locale_utils.dart';
 import '../../../feed/domain/entities/story.dart';
 import '../../data/datasources/claude_api_datasource.dart';
 import '../../data/datasources/translation_cache_datasource.dart';
@@ -21,6 +22,7 @@ final translationCacheDataSourceProvider =
   final app = Firebase.app(AppConfig.instance.flavor.name);
   return TranslationCacheDataSourceImpl(
     firestore: FirebaseFirestore.instanceFor(app: app),
+    languageCode: LocaleUtils.deviceLanguageCode,
   );
 });
 
@@ -43,13 +45,15 @@ final translatedStoriesProvider =
   debugPrint('=== translation enabled: $enabled');
   debugPrint('=== stories count: ${stories.length}');
 
+  if (!LocaleUtils.needsTranslation) return stories;
+
   if (!enabled) return stories;
 
   final repository = ref.read(translationRepositoryProvider);
 
   final needTranslation = <int, String>{};
   for (final story in stories) {
-    if (story.titleJa == null) {
+    if (story.translatedTitle == null) {
       needTranslation[story.id] = story.title;
     }
   }
@@ -64,13 +68,13 @@ final translatedStoriesProvider =
     debugPrint('=== translated count: ${translations.length}');
 
     final translationMap = {
-      for (final t in translations) t.storyId: t.titleJa
+      for (final t in translations) t.storyId: t.translatedTitle
     };
 
     return stories.map((story) {
-      final titleJa = translationMap[story.id];
-      if (titleJa == null) return story;
-      return _StoryWithTranslation(story, titleJa);
+      final translatedTitle = translationMap[story.id];
+      if (translatedTitle == null) return story;
+      return _StoryWithTranslation(story, translatedTitle);
     }).toList();
   } catch (e, st) {
     debugPrint('=== translation error: $e');
@@ -80,11 +84,11 @@ final translatedStoriesProvider =
 });
 
 class _StoryWithTranslation extends Story {
-  _StoryWithTranslation(Story story, String titleJa)
+  _StoryWithTranslation(Story story, String translatedTitle)
       : super(
           id: story.id,
           title: story.title,
-          titleJa: titleJa,
+          translatedTitle: translatedTitle,
           url: story.url,
           by: story.by,
           score: story.score,

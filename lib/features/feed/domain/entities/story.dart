@@ -1,7 +1,8 @@
 class Story {
   final int id;
   final String title;
-  final String? titleJa; // 日本語タイトル
+  /// 端末言語向けの翻訳タイトル（未取得時は null）
+  final String? translatedTitle;
   final String? url;
   final String by; // 投稿者
   final int score; // スコア
@@ -12,7 +13,7 @@ class Story {
   const Story({
     required this.id,
     required this.title,
-    this.titleJa,
+    this.translatedTitle,
     this.url,
     required this.by,
     required this.score,
@@ -26,7 +27,7 @@ class Story {
       DateTime.fromMillisecondsSinceEpoch(time * 1000);
 
   // 表示用タイトル（日本語があれば日本語を優先）
-  String get displayTitle => titleJa ?? title;
+  String get displayTitle => translatedTitle ?? title;
 
   // ドメイン名を取得（例: github.com）
   String? get domain {

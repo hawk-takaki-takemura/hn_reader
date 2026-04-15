@@ -1,15 +1,55 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../translation/presentation/providers/translation_provider.dart';
 import '../providers/feed_provider.dart';
+import '../providers/read_history_provider.dart';
 import '../widgets/story_card.dart';
 
-class FeedScreen extends ConsumerWidget {
+class FeedScreen extends ConsumerStatefulWidget {
   const FeedScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FeedScreen> createState() => _FeedScreenState();
+}
+
+class _FeedScreenState extends ConsumerState<FeedScreen> {
+  final _scrollController = ScrollController();
+  bool _showScrollButton = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    final max = position.maxScrollExtent;
+    if (max <= 0) {
+      if (_showScrollButton) setState(() => _showScrollButton = false);
+      return;
+    }
+    // 長いリストは 200px、短いリストは中間付近までスクロールで表示（max<200 だと従来条件では永遠に出ない）
+    final threshold = math.min(200.0, max * 0.5);
+    final show = position.pixels > threshold;
+    if (show != _showScrollButton) {
+      setState(() => _showScrollButton = show);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final feedType = ref.watch(feedTypeProvider);
     final feedAsync = ref.watch(feedProvider);
 
@@ -27,8 +67,21 @@ class FeedScreen extends ConsumerWidget {
           ),
         ),
       ),
+      floatingActionButton: _showScrollButton
+          ? FloatingActionButton.small(
+              onPressed: () {
+                _scrollController.animateTo(
+                  0,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOut,
+                );
+              },
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              child: const Icon(Icons.arrow_upward, color: Colors.white),
+            )
+          : null,
       body: feedAsync.when(
-        loading: () => const _LoadingList(),
+        loading: () => _LoadingList(controller: _scrollController),
         error: (e, _) => _ErrorView(
           message: e.toString(),
           onRetry: () => ref.read(feedProvider.notifier).refresh(),
@@ -37,28 +90,46 @@ class FeedScreen extends ConsumerWidget {
           final translatedAsync =
               ref.watch(translatedStoriesProvider(stories));
           return translatedAsync.when(
-            loading: () => const _LoadingList(),
+            loading: () => _LoadingList(controller: _scrollController),
             error: (e, _) => RefreshIndicator(
               onRefresh: () => ref.read(feedProvider.notifier).refresh(),
               child: ListView.builder(
+                controller: _scrollController,
+                physics: const AlwaysScrollableScrollPhysics(),
                 itemCount: stories.length,
-                itemBuilder: (context, index) => StoryCard(
-                  story: stories[index],
-                  onTap: () {
-                    // TODO: 記事詳細へ遷移
-                  },
-                ),
+                itemBuilder: (context, index) {
+                  final story = stories[index];
+                  final isRead = ref.watch(readHistoryProvider).contains(story.id);
+                  return StoryCard(
+                    story: story,
+                    isRead: isRead,
+                    onTap: () {
+                      ref
+                          .read(readHistoryProvider.notifier)
+                          .markAsRead(story.id);
+                      // TODO: 記事詳細へ遷移
+                    },
+                  );
+                },
               ),
             ),
             data: (translatedStories) => RefreshIndicator(
               onRefresh: () => ref.read(feedProvider.notifier).refresh(),
               child: ListView.builder(
+                controller: _scrollController,
+                physics: const AlwaysScrollableScrollPhysics(),
                 itemCount: translatedStories.length,
                 itemBuilder: (context, index) {
                   final story = translatedStories[index];
+                  final isRead =
+                      ref.watch(readHistoryProvider).contains(story.id);
                   return StoryCard(
                     story: story,
+                    isRead: isRead,
                     onTap: () {
+                      ref
+                          .read(readHistoryProvider.notifier)
+                          .markAsRead(story.id);
                       // TODO: 記事詳細へ遷移
                     },
                   );
@@ -119,6 +190,17 @@ class _Tab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isOrangeBar = Theme.of(context).appBarTheme.backgroundColor ==
+        const Color(0xFFFF6600);
+
+    final Color selectedBorderColor =
+        isOrangeBar ? Colors.white : Theme.of(context).colorScheme.primary;
+    final Color selectedTextColor =
+        isOrangeBar ? Colors.white : Theme.of(context).colorScheme.primary;
+    final Color unselectedTextColor = isOrangeBar
+        ? Colors.white.withValues(alpha: 0.6)
+        : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6);
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -129,9 +211,7 @@ class _Tab extends StatelessWidget {
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
-              color: isSelected
-                  ? Theme.of(context).colorScheme.primary
-                  : Colors.transparent,
+              color: isSelected ? selectedBorderColor : Colors.transparent,
               width: 2,
             ),
           ),
@@ -139,12 +219,7 @@ class _Tab extends StatelessWidget {
         child: Text(
           label,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: isSelected
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.6),
+                color: isSelected ? selectedTextColor : unselectedTextColor,
                 fontWeight: isSelected
                     ? FontWeight.bold
                     : FontWeight.normal,
@@ -157,11 +232,17 @@ class _Tab extends StatelessWidget {
 
 // ローディング（スケルトン）
 class _LoadingList extends StatelessWidget {
-  const _LoadingList();
+  const _LoadingList({this.controller});
+
+  final ScrollController? controller;
 
   @override
   Widget build(BuildContext context) {
     return ListView.builder(
+      controller: controller,
+      physics: controller != null
+          ? const AlwaysScrollableScrollPhysics()
+          : null,
       itemCount: 10,
       itemBuilder: (context, _) => const _SkeletonCard(),
     );
