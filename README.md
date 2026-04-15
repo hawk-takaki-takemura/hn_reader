@@ -1,4 +1,4 @@
-# HN Reader
+# Yomi
 
 Hacker News の日本語リーダーアプリ（Flutter）
 
@@ -9,7 +9,7 @@ Hacker News の日本語リーダーアプリ（Flutter）
 - Flutter 3.29.2
 - Dart 3.x
 - Firebase（dev / stg / prod）
-- アプリ識別子のベースは **`com.takaki.hnreader`**（iOS の Bundle ID・Android の `applicationId` / Gradle `namespace` を揃えています。dev / stg は `.dev` / `.stg` サフィックス）
+- アプリ識別子のベースは **`com.takaki.yomi`**（iOS の Bundle ID・Android の `applicationId` / Gradle `namespace` を揃えています。dev / stg は `.dev` / `.stg` サフィックス）
 
 ## セットアップ
 
@@ -46,24 +46,24 @@ Firebase Console から実際の値を取得して上書きしてください。
 ```bash
 # dev
 flutterfire configure \
-  --project=hn-reader-dev \
+  --project=yomi-dev \
   --out=lib/core/config/firebase/dev_firebase_options.dart \
-  --ios-bundle-id=com.takaki.hnreader.dev \
-  --android-package-name=com.takaki.hnreader.dev
+  --ios-bundle-id=com.takaki.yomi.dev \
+  --android-package-name=com.takaki.yomi.dev
 
 # stg
 flutterfire configure \
-  --project=hn-reader-stg \
+  --project=yomi-stg \
   --out=lib/core/config/firebase/stg_firebase_options.dart \
-  --ios-bundle-id=com.takaki.hnreader.stg \
-  --android-package-name=com.takaki.hnreader.stg
+  --ios-bundle-id=com.takaki.yomi.stg \
+  --android-package-name=com.takaki.yomi.stg
 
 # prod
 flutterfire configure \
-  --project=hn-reader-prod \
+  --project=yomi-prod \
   --out=lib/core/config/firebase/prod_firebase_options.dart \
-  --ios-bundle-id=com.takaki.hnreader \
-  --android-package-name=com.takaki.hnreader
+  --ios-bundle-id=com.takaki.yomi \
+  --android-package-name=com.takaki.yomi
 ```
 
 ### 3. パッケージインストール

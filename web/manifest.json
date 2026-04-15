@@ -1,6 +1,6 @@
 {
-    "name": "hn_reader",
-    "short_name": "hn_reader",
+    "name": "yomi",
+    "short_name": "yomi",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
