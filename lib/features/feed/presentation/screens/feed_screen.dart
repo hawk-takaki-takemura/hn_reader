@@ -3,7 +3,11 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../ads/presentation/providers/ads_provider.dart';
+import '../../../ads/presentation/widgets/banner_ad_widget.dart';
+import '../../../ads/presentation/widgets/native_ad_widget.dart';
 import '../../../translation/presentation/providers/translation_provider.dart';
+import '../../domain/entities/story.dart';
 import '../providers/feed_provider.dart';
 import '../providers/read_history_provider.dart';
 import '../widgets/story_card.dart';
@@ -18,6 +22,47 @@ class FeedScreen extends ConsumerStatefulWidget {
 class _FeedScreenState extends ConsumerState<FeedScreen> {
   final _scrollController = ScrollController();
   bool _showScrollButton = false;
+
+  int _safeInterval(int interval) {
+    // Remote Configの設定ミス対策（0以下はデフォルト値へフォールバック）
+    return interval > 0 ? interval : 10;
+  }
+
+  /// ストーリーリストにネイティブ広告を差し込んだ仮想インデックスを計算する
+  /// interval=10 のとき: 0-9→記事、10→広告、11-20→記事、21→広告...
+  int _itemCount(int storyCount, int interval) {
+    final safeInterval = _safeInterval(interval);
+    final adCount = storyCount ~/ safeInterval;
+    return storyCount + adCount;
+  }
+
+  Widget _itemBuilder(
+    BuildContext context,
+    int index,
+    List<Story> stories,
+    int interval,
+  ) {
+    final safeInterval = _safeInterval(interval);
+    // 広告を挿入する仮想インデックス: interval+1 ごとに1つ広告
+    final cycle = safeInterval + 1;
+    if ((index + 1) % cycle == 0) {
+      return const NativeAdWidget();
+    }
+    // 広告分のオフセットを引いた実際の記事インデックス
+    final adsBefore = (index + 1) ~/ cycle;
+    final storyIndex = index - adsBefore;
+    if (storyIndex >= stories.length) return const SizedBox.shrink();
+
+    final story = stories[storyIndex];
+    final isRead = ref.watch(readHistoryProvider).contains(story.id);
+    return StoryCard(
+      story: story,
+      isRead: isRead,
+      onTap: () {
+        ref.read(readHistoryProvider.notifier).markAsRead(story.id);
+      },
+    );
+  }
 
   @override
   void initState() {
@@ -80,6 +125,10 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
               child: const Icon(Icons.arrow_upward, color: Colors.white),
             )
           : null,
+      bottomNavigationBar: const SafeArea(
+        top: false,
+        child: BannerAdWidget(),
+      ),
       body: feedAsync.when(
         loading: () => _LoadingList(controller: _scrollController),
         error: (e, _) => _ErrorView(
@@ -96,20 +145,29 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
               child: ListView.builder(
                 controller: _scrollController,
                 physics: const AlwaysScrollableScrollPhysics(),
-                itemCount: stories.length,
+                itemCount: () {
+                  final interval = ref.watch(nativeAdIntervalProvider);
+                  final adsEnabled = ref.watch(adsEnabledProvider);
+                  return adsEnabled
+                      ? _itemCount(stories.length, interval)
+                      : stories.length;
+                }(),
                 itemBuilder: (context, index) {
-                  final story = stories[index];
-                  final isRead = ref.watch(readHistoryProvider).contains(story.id);
-                  return StoryCard(
-                    story: story,
-                    isRead: isRead,
-                    onTap: () {
-                      ref
+                  final interval = ref.watch(nativeAdIntervalProvider);
+                  final adsEnabled = ref.watch(adsEnabledProvider);
+                  if (!adsEnabled) {
+                    final story = stories[index];
+                    final isRead =
+                        ref.watch(readHistoryProvider).contains(story.id);
+                    return StoryCard(
+                      story: story,
+                      isRead: isRead,
+                      onTap: () => ref
                           .read(readHistoryProvider.notifier)
-                          .markAsRead(story.id);
-                      // TODO: 記事詳細へ遷移
-                    },
-                  );
+                          .markAsRead(story.id),
+                    );
+                  }
+                  return _itemBuilder(context, index, stories, interval);
                 },
               ),
             ),
@@ -118,20 +176,33 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
               child: ListView.builder(
                 controller: _scrollController,
                 physics: const AlwaysScrollableScrollPhysics(),
-                itemCount: translatedStories.length,
+                itemCount: () {
+                  final interval = ref.watch(nativeAdIntervalProvider);
+                  final adsEnabled = ref.watch(adsEnabledProvider);
+                  return adsEnabled
+                      ? _itemCount(translatedStories.length, interval)
+                      : translatedStories.length;
+                }(),
                 itemBuilder: (context, index) {
-                  final story = translatedStories[index];
-                  final isRead =
-                      ref.watch(readHistoryProvider).contains(story.id);
-                  return StoryCard(
-                    story: story,
-                    isRead: isRead,
-                    onTap: () {
-                      ref
+                  final interval = ref.watch(nativeAdIntervalProvider);
+                  final adsEnabled = ref.watch(adsEnabledProvider);
+                  if (!adsEnabled) {
+                    final story = translatedStories[index];
+                    final isRead =
+                        ref.watch(readHistoryProvider).contains(story.id);
+                    return StoryCard(
+                      story: story,
+                      isRead: isRead,
+                      onTap: () => ref
                           .read(readHistoryProvider.notifier)
-                          .markAsRead(story.id);
-                      // TODO: 記事詳細へ遷移
-                    },
+                          .markAsRead(story.id),
+                    );
+                  }
+                  return _itemBuilder(
+                    context,
+                    index,
+                    translatedStories,
+                    interval,
                   );
                 },
               ),

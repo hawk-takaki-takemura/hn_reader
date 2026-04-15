@@ -27,6 +27,13 @@
       },
       "valueType": "BOOLEAN",
       "description": "メンテナンス画面の表示制御"
+    },
+    "native_ad_interval": {
+      "defaultValue": {
+        "value": "10"
+      },
+      "valueType": "NUMBER",
+      "description": "ネイティブ広告の差し込み間隔"
     }
   },
   "version": {
