@@ -18,6 +18,10 @@ migrate_working_dir/
 *.iws
 .idea/
 
+# ローカル環境変数（APIキー等）
+.env
+.env.*
+
 # Flutter/Dart/Pub related
 **/doc/api/
 **/ios/Flutter/.last_build_id
