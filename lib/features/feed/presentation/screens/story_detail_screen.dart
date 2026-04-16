@@ -18,6 +18,9 @@ class StoryDetailArgs {
 
 enum _DetailLanguage { ja, original }
 
+/// 本文タブの WebView で読み込む URL（サイト原文 vs Google 翻訳ラッパー）。
+enum _ArticleWebMode { originalSite, googleTranslate }
+
 class StoryDetailScreen extends StatefulWidget {
   final StoryDetailArgs args;
 
@@ -30,7 +33,10 @@ class StoryDetailScreen extends StatefulWidget {
 class _StoryDetailScreenState extends State<StoryDetailScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
+  late final ScrollController _overviewScrollController;
+  final GlobalKey _commentsSectionKey = GlobalKey();
   _DetailLanguage _language = _DetailLanguage.ja;
+  _ArticleWebMode _articleWebMode = _ArticleWebMode.googleTranslate;
   Future<List<_TranslatedComment>>? _commentsFuture;
   WebViewController? _webViewController;
 
@@ -40,12 +46,14 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _overviewScrollController = ScrollController();
     _commentsFuture = _fetchTranslatedComments();
     _setupWebViewController();
   }
 
   @override
   void dispose() {
+    _overviewScrollController.dispose();
     _tabController.dispose();
     super.dispose();
   }
@@ -132,6 +140,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
               commentId: commentId,
               originalText: originalText,
               translatedText: translatedText,
+              showOriginal: false,
             );
           })
           .whereType<_TranslatedComment>()
@@ -178,6 +187,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
             commentId: id,
             originalText: text,
             translatedText: text,
+            showOriginal: false,
           ),
         );
       } catch (_) {
@@ -297,28 +307,29 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
   }
 
   void _setupWebViewController() {
-    final target = _originalArticleUri;
-    if (target == null) {
+    if (_originalArticleUri == null) {
       _webViewController = null;
       return;
     }
+    final initial = _articleWebUriForMode(_articleWebMode) ?? _originalArticleUri!;
     final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..loadRequest(target);
+      ..loadRequest(initial);
     _webViewController = controller;
   }
 
-  Future<void> _launchMachineTranslatedArticle(BuildContext context) async {
-    final uri = _translatedArticleUri;
-    if (uri == null) {
-      _showSnackBar(context, 'URLがないため開けません');
-      return;
-    }
-    await _launchUri(
-      context,
-      uri,
-      emptyMessage: '翻訳ページを開けませんでした',
-    );
+  Uri? _articleWebUriForMode(_ArticleWebMode mode) {
+    return mode == _ArticleWebMode.originalSite
+        ? _originalArticleUri
+        : _translatedArticleUri;
+  }
+
+  Future<void> _applyArticleWebMode(_ArticleWebMode mode) async {
+    final controller = _webViewController;
+    if (controller == null) return;
+    final uri = _articleWebUriForMode(mode);
+    if (uri == null) return;
+    await controller.loadRequest(uri);
   }
 
   Future<void> _copyStoryUrl() async {
@@ -330,6 +341,17 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
     await Clipboard.setData(ClipboardData(text: url));
     if (!mounted) return;
     _showSnackBar(context, 'URLをコピーしました');
+  }
+
+  Future<void> _scrollToCommentsSection() async {
+    final context = _commentsSectionKey.currentContext;
+    if (context == null) return;
+    await Scrollable.ensureVisible(
+      context,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+      alignment: 0.08,
+    );
   }
 
   Widget _buildLanguageToggle() {
@@ -360,6 +382,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
         _language == _DetailLanguage.ja && _hasTranslatedTitle;
 
     return SingleChildScrollView(
+      controller: _overviewScrollController,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -452,6 +475,15 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
                 ),
               ),
             ],
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: _scrollToCommentsSection,
+                icon: const Icon(Icons.forum_outlined, size: 18),
+                label: const Text('コメントを読む'),
+              ),
+            ),
             const SizedBox(height: 20),
           ],
           if (story.hasEnrichment && story.enrichment!.tags.isNotEmpty) ...[
@@ -488,6 +520,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
           ],
           const SizedBox(height: 24),
           Text(
+            key: _commentsSectionKey,
             'コメント',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w700,
@@ -557,12 +590,23 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
                 : item.translatedText;
             final sameBody =
                 item.translatedText.trim() == item.originalText.trim();
+            final showOriginalToggle =
+                _language == _DetailLanguage.ja && !sameBody;
             return _TranslatedCommentCard(
               item: item,
               primaryText: text,
               secondaryText: subText,
               secondaryLabel: _language == _DetailLanguage.ja ? '原文' : '翻訳',
-              showSecondary: !sameBody,
+              showSecondary: _language == _DetailLanguage.original && !sameBody,
+              showOriginalToggle: showOriginalToggle,
+              showOriginal: item.showOriginal,
+              onToggleOriginal: showOriginalToggle
+                  ? () {
+                      setState(() {
+                        item.showOriginal = !item.showOriginal;
+                      });
+                    }
+                  : null,
               fallbackCaption: sameBody && _language == _DetailLanguage.ja
                   ? 'サーバー翻訳未取得（App Check 等）。原文表示中'
                   : null,
@@ -614,19 +658,45 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
               ),
               const SizedBox(height: 6),
               Text(
-                '本文はサイトの原文です。機械翻訳はブラウザで開いてください。',
+                _articleWebMode == _ArticleWebMode.googleTranslate
+                    ? 'Google 翻訳経由で表示しています。サイトによっては表示が崩れることがあります。'
+                    : '記事サイトの原文です。',
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
                 ),
               ),
-              const SizedBox(height: 6),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: () => _launchMachineTranslatedArticle(context),
-                  icon: const Icon(Icons.translate, size: 18),
-                  label: const Text('Google翻訳で開く'),
-                ),
+              const SizedBox(height: 8),
+              SegmentedButton<_ArticleWebMode>(
+                segments: const [
+                  ButtonSegment<_ArticleWebMode>(
+                    value: _ArticleWebMode.googleTranslate,
+                    label: Text('翻訳'),
+                    icon: Icon(Icons.translate, size: 18),
+                  ),
+                  ButtonSegment<_ArticleWebMode>(
+                    value: _ArticleWebMode.originalSite,
+                    label: Text('原文'),
+                    icon: Icon(Icons.language, size: 18),
+                  ),
+                ],
+                selected: {_articleWebMode},
+                onSelectionChanged: (selection) async {
+                  final next = selection.first;
+                  if (next == _articleWebMode) return;
+                  final previous = _articleWebMode;
+                  setState(() => _articleWebMode = next);
+                  try {
+                    await _applyArticleWebMode(next);
+                  } catch (_) {
+                    if (!mounted) return;
+                    setState(() => _articleWebMode = previous);
+                    try {
+                      await _applyArticleWebMode(previous);
+                    } catch (_) {}
+                    if (!mounted) return;
+                    _showSnackBar(context, 'ページの読み込みに失敗しました');
+                  }
+                },
               ),
             ],
           ),
@@ -636,30 +706,6 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
         ),
       ],
     );
-  }
-
-  Future<void> _launchUri(
-    BuildContext context,
-    Uri uri, {
-    required String emptyMessage,
-  }) async {
-    if (uri.toString().isEmpty) {
-      _showSnackBar(context, emptyMessage);
-      return;
-    }
-    try {
-      var opened = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
-      if (!opened) {
-        opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
-      if (!context.mounted) return;
-      if (!opened) {
-        _showSnackBar(context, 'ページを開けませんでした');
-      }
-    } catch (_) {
-      if (!context.mounted) return;
-      _showSnackBar(context, 'ページを開けませんでした');
-    }
   }
 
   void _showSnackBar(BuildContext context, String message) {
@@ -684,8 +730,8 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildOverviewTab(theme),
-          _buildArticleTab(theme),
+          _TabKeepAlive(child: _buildOverviewTab(theme)),
+          _TabKeepAlive(child: _buildArticleTab(theme)),
         ],
       ),
       bottomNavigationBar: SafeArea(
@@ -717,15 +763,38 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
   }
 }
 
+/// TabBarView（PageView）が非表示タブを破棄しないよう保持し、スクロール位置や WebView の状態を維持する。
+class _TabKeepAlive extends StatefulWidget {
+  final Widget child;
+
+  const _TabKeepAlive({required this.child});
+
+  @override
+  State<_TabKeepAlive> createState() => _TabKeepAliveState();
+}
+
+class _TabKeepAliveState extends State<_TabKeepAlive> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
+  }
+}
+
 class _TranslatedComment {
   final int commentId;
   final String originalText;
   final String translatedText;
+  bool showOriginal;
 
-  const _TranslatedComment({
+  _TranslatedComment({
     required this.commentId,
     required this.originalText,
     required this.translatedText,
+    this.showOriginal = false,
   });
 }
 
@@ -735,6 +804,9 @@ class _TranslatedCommentCard extends StatelessWidget {
   final String secondaryText;
   final String secondaryLabel;
   final bool showSecondary;
+  final bool showOriginalToggle;
+  final bool showOriginal;
+  final VoidCallback? onToggleOriginal;
   final String? fallbackCaption;
 
   const _TranslatedCommentCard({
@@ -743,6 +815,9 @@ class _TranslatedCommentCard extends StatelessWidget {
     required this.secondaryText,
     required this.secondaryLabel,
     this.showSecondary = true,
+    this.showOriginalToggle = false,
+    this.showOriginal = false,
+    this.onToggleOriginal,
     this.fallbackCaption,
   });
 
@@ -795,6 +870,35 @@ class _TranslatedCommentCard extends StatelessWidget {
                 height: 1.45,
               ),
             ),
+          ],
+          if (showOriginalToggle) ...[
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: onToggleOriginal,
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(0, 28),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(showOriginal ? '原文を隠す▴' : '原文を見る▾'),
+            ),
+            if (showOriginal) ...[
+              const SizedBox(height: 6),
+              Text(
+                '原文',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                item.originalText,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+                  height: 1.45,
+                ),
+              ),
+            ],
           ],
         ],
       ),
