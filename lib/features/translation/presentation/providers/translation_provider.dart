@@ -97,5 +97,7 @@ class _StoryWithTranslation extends Story {
           descendants: story.descendants,
           time: story.time,
           type: story.type,
+          enrichStatus: story.enrichStatus,
+          enrichment: story.enrichment,
         );
 }
