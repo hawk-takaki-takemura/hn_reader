@@ -46,7 +46,8 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
     // 広告を挿入する仮想インデックス: interval+1 ごとに1つ広告
     final cycle = safeInterval + 1;
     if ((index + 1) % cycle == 0) {
-      return const NativeAdWidget();
+      // スクロールで再利用されると広告ロード完了が dispose 後に届くため、行ごとに Key を分ける
+      return NativeAdWidget(key: ValueKey('native_ad_$index'));
     }
     // 広告分のオフセットを引いた実際の記事インデックス
     final adsBefore = (index + 1) ~/ cycle;

@@ -1,7 +1,11 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dio/dio.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/config/app_config.dart';
 import '../../../../core/constants/api_constants.dart';
+import '../../data/datasources/firestore_datasource.dart';
 import '../../data/datasources/hn_remote_datasource.dart';
 import '../../data/repositories/story_repository_impl.dart';
 import '../../domain/entities/story.dart';
@@ -28,9 +32,20 @@ final hnRemoteDataSourceProvider = Provider<HnRemoteDataSource>((ref) {
   return HnRemoteDataSourceImpl(dio: ref.watch(dioProvider));
 });
 
+final firestoreProvider = Provider<FirebaseFirestore>((ref) {
+  return FirebaseFirestore.instanceFor(
+    app: Firebase.app(AppConfig.instance.flavor.name),
+  );
+});
+
+final firestoreDataSourceProvider = Provider<FirestoreDataSource>((ref) {
+  return FirestoreDataSource(db: ref.watch(firestoreProvider));
+});
+
 final storyRepositoryProvider = Provider<StoryRepository>((ref) {
   return StoryRepositoryImpl(
     remoteDataSource: ref.watch(hnRemoteDataSourceProvider),
+    firestoreDataSource: ref.watch(firestoreDataSourceProvider),
   );
 });
 
