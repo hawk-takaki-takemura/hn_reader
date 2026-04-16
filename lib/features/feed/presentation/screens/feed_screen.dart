@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../ads/presentation/providers/ads_provider.dart';
 import '../../../ads/presentation/widgets/banner_ad_widget.dart';
@@ -10,6 +11,7 @@ import '../../../translation/presentation/providers/translation_provider.dart';
 import '../../domain/entities/story.dart';
 import '../providers/feed_provider.dart';
 import '../providers/read_history_provider.dart';
+import 'story_detail_screen.dart';
 import '../widgets/story_card.dart';
 
 class FeedScreen extends ConsumerStatefulWidget {
@@ -22,6 +24,11 @@ class FeedScreen extends ConsumerStatefulWidget {
 class _FeedScreenState extends ConsumerState<FeedScreen> {
   final _scrollController = ScrollController();
   bool _showScrollButton = false;
+
+  void _openStoryDetail(Story story) {
+    ref.read(readHistoryProvider.notifier).markAsRead(story.id);
+    context.push('/story', extra: StoryDetailArgs(story: story));
+  }
 
   int _safeInterval(int interval) {
     // Remote Configの設定ミス対策（0以下はデフォルト値へフォールバック）
@@ -59,9 +66,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
     return StoryCard(
       story: story,
       isRead: isRead,
-      onTap: () {
-        ref.read(readHistoryProvider.notifier).markAsRead(story.id);
-      },
+      onTap: () => _openStoryDetail(story),
     );
   }
 
@@ -163,9 +168,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                     return StoryCard(
                       story: story,
                       isRead: isRead,
-                      onTap: () => ref
-                          .read(readHistoryProvider.notifier)
-                          .markAsRead(story.id),
+                      onTap: () => _openStoryDetail(story),
                     );
                   }
                   return _itemBuilder(context, index, stories, interval);
@@ -194,9 +197,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                     return StoryCard(
                       story: story,
                       isRead: isRead,
-                      onTap: () => ref
-                          .read(readHistoryProvider.notifier)
-                          .markAsRead(story.id),
+                      onTap: () => _openStoryDetail(story),
                     );
                   }
                   return _itemBuilder(
