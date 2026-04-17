@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:dio/dio.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -379,6 +383,19 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
     );
   }
 
+  /// `www.` を除いたホスト比較用（同一サイト判定の粗い近似）。
+  String? _hostForSameSiteCompare(Uri? uri) {
+    final h = uri?.host.toLowerCase();
+    if (h == null || h.isEmpty) return null;
+    return h.startsWith('www.') ? h.substring(4) : h;
+  }
+
+  bool _isGoogleTranslateHost(String? host) {
+    if (host == null) return false;
+    final h = host.toLowerCase();
+    return h == 'translate.google.com' || h == 'translate.google.co.jp';
+  }
+
   void _setupWebViewController() {
     final target = _originalArticleUri;
     if (target == null) {
@@ -387,6 +404,38 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
     }
     final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onNavigationRequest: (NavigationRequest request) {
+            final destUri = Uri.tryParse(request.url);
+            final original = _originalArticleUri;
+            final originalComparable = _hostForSameSiteCompare(original);
+            final destComparable = _hostForSameSiteCompare(destUri);
+            final destHost = destUri?.host;
+
+            if (_isGoogleTranslateHost(destHost)) {
+              return NavigationDecision.navigate;
+            }
+            if (originalComparable != null &&
+                destComparable != null &&
+                destComparable == originalComparable) {
+              return NavigationDecision.navigate;
+            }
+            if (originalComparable != null &&
+                destComparable != null &&
+                destComparable != originalComparable) {
+              unawaited(
+                launchUrl(
+                  Uri.parse(request.url),
+                  mode: LaunchMode.externalApplication,
+                ),
+              );
+              return NavigationDecision.prevent;
+            }
+            return NavigationDecision.navigate;
+          },
+        ),
+      )
       ..loadRequest(target);
     _webViewController = controller;
   }
@@ -397,11 +446,20 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
       _showSnackBar(context, 'URLがないため開けません');
       return;
     }
-    await _launchUri(
-      context,
-      uri,
-      emptyMessage: '翻訳ページを開けませんでした',
-    );
+    final c = _webViewController;
+    if (c == null) {
+      _showSnackBar(context, 'WebView が利用できません');
+      return;
+    }
+    try {
+      await c.loadRequest(uri);
+    } catch (_) {
+      if (!context.mounted) return;
+      _showSnackBar(context, '翻訳ページを開けませんでした');
+      return;
+    }
+    if (!mounted) return;
+    _tabController.animateTo(1);
   }
 
   Future<void> _copyStoryUrl() async {
@@ -717,7 +775,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
               ),
               const SizedBox(height: 6),
               Text(
-                '本文はサイトの原文です。機械翻訳はブラウザで開いてください。',
+                '本文はサイトの原文です。下のボタンでこのタブ内に Google 翻訳を表示できます。',
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
                 ),
@@ -735,34 +793,17 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
           ),
         ),
         Expanded(
-          child: WebViewWidget(controller: _webViewController!),
+          child: WebViewWidget(
+            controller: _webViewController!,
+            gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+              Factory<OneSequenceGestureRecognizer>(VerticalDragGestureRecognizer.new),
+              Factory<OneSequenceGestureRecognizer>(HorizontalDragGestureRecognizer.new),
+              Factory<OneSequenceGestureRecognizer>(ScaleGestureRecognizer.new),
+            },
+          ),
         ),
       ],
     );
-  }
-
-  Future<void> _launchUri(
-    BuildContext context,
-    Uri uri, {
-    required String emptyMessage,
-  }) async {
-    if (uri.toString().isEmpty) {
-      _showSnackBar(context, emptyMessage);
-      return;
-    }
-    try {
-      var opened = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
-      if (!opened) {
-        opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
-      if (!context.mounted) return;
-      if (!opened) {
-        _showSnackBar(context, 'ページを開けませんでした');
-      }
-    } catch (_) {
-      if (!context.mounted) return;
-      _showSnackBar(context, 'ページを開けませんでした');
-    }
   }
 
   void _showSnackBar(BuildContext context, String message) {
