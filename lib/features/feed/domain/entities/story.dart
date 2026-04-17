@@ -1,3 +1,4 @@
+import 'story_comments_enrichment.dart';
 import 'story_enrichment.dart';
 
 class Story {
@@ -17,6 +18,9 @@ class Story {
 
   final StoryEnrichment? enrichment;
 
+  /// Firestore `hn_items.comments_enrichment`（温めジョブのコメント翻訳・傾向）。
+  final StoryCommentsEnrichment? commentsEnrichment;
+
   const Story({
     required this.id,
     required this.title,
@@ -29,6 +33,7 @@ class Story {
     required this.type,
     this.enrichStatus = 'idle',
     this.enrichment,
+    this.commentsEnrichment,
   });
 
   DateTime get postedAt =>
@@ -56,6 +61,10 @@ class Story {
 
   bool get hasEnrichment =>
       enrichStatus == 'completed' && enrichment != null;
+
+  /// 詳細で Callable より先に使う、事前計算済みコメント＋傾向。
+  bool get hasCachedCommentsPath =>
+      commentsEnrichment?.isReadyForDetailUi == true;
 
   String? get domain {
     if (url == null) return null;
