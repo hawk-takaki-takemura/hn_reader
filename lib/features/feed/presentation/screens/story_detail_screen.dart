@@ -27,6 +27,83 @@ class StoryDetailArgs {
 
 enum _DetailLanguage { ja, original }
 
+extension _StoryDetailStoryX on Story {
+  bool get hasDistinctTranslatedTitle {
+    final translated = translatedTitle?.trim();
+    return translated != null &&
+        translated.isNotEmpty &&
+        translated != title.trim();
+  }
+
+  bool get hasSummaryShortContent =>
+      hasEnrichment &&
+      enrichment!.summaryShort != null &&
+      enrichment!.summaryShort!.trim().isNotEmpty;
+
+  bool get hasSummaryPointsContent =>
+      hasEnrichment && enrichment!.summaryPoints.isNotEmpty;
+}
+
+bool _isGoogleConsentFlowHost(String h) {
+  switch (h) {
+    case 'consent.google.com':
+    case 'accounts.google.com':
+    case 'ogs.google.com':
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool _isTranslateFamilyUri(Uri uri) {
+  final h = uri.host.toLowerCase();
+  if (h.endsWith('.translate.goog')) return true;
+  if (h == 'translate.google.com' || h.endsWith('.translate.google.com')) {
+    return true;
+  }
+  if (h == 'translate.google.co.jp' || h.endsWith('.translate.google.co.jp')) {
+    return true;
+  }
+  final path = uri.path.toLowerCase();
+  if ((h == 'www.google.com' || h == 'google.com') && path.contains('translate')) {
+    return true;
+  }
+  return false;
+}
+
+String _titleForDetailLanguage(Story story, _DetailLanguage lang) =>
+    lang == _DetailLanguage.original ? story.title : story.displayTitle;
+
+Widget _detailSectionTitle(BuildContext context, String text) {
+  final theme = Theme.of(context);
+  return Text(
+    text,
+    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+  );
+}
+
+final ButtonStyle _articleTabToolbarTextButtonStyle = TextButton.styleFrom(
+  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+  minimumSize: Size.zero,
+  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+);
+
+Widget _storyDetailCommentEntry(_TranslatedComment item, _DetailLanguage language) {
+  final text = language == _DetailLanguage.ja ? item.translatedText : item.originalText;
+  final subText = language == _DetailLanguage.ja ? item.originalText : item.translatedText;
+  final sameBody = item.translatedText.trim() == item.originalText.trim();
+  return _TranslatedCommentCard(
+    item: item,
+    primaryText: text,
+    secondaryText: subText,
+    secondaryLabel: language == _DetailLanguage.ja ? '原文' : '翻訳',
+    showSecondary: !sameBody,
+    fallbackCaption: sameBody && language == _DetailLanguage.ja
+        ? 'サーバー翻訳未取得（App Check 等）。原文表示中'
+        : null,
+  );
+}
+
 class StoryDetailScreen extends StatefulWidget {
   final StoryDetailArgs args;
 
@@ -89,21 +166,6 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
     _tabController.dispose();
     super.dispose();
   }
-
-  bool get _hasTranslatedTitle {
-    final translated = story.translatedTitle?.trim();
-    return translated != null &&
-        translated.isNotEmpty &&
-        translated != story.title.trim();
-  }
-
-  bool get _hasSummaryShort =>
-      story.hasEnrichment &&
-      story.enrichment!.summaryShort != null &&
-      story.enrichment!.summaryShort!.trim().isNotEmpty;
-
-  bool get _hasSummaryPoints =>
-      story.hasEnrichment && story.enrichment!.summaryPoints.isNotEmpty;
 
   FirebaseFunctions _functions() {
     return FirebaseFunctions.instanceFor(
@@ -365,13 +427,6 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
     return out;
   }
 
-  String get _titleForSelectedLanguage {
-    if (_language == _DetailLanguage.original) {
-      return story.title;
-    }
-    return story.displayTitle;
-  }
-
   Uri? get _originalArticleUri {
     final rawUrl = story.url?.trim();
     final uri = rawUrl == null ? null : Uri.tryParse(rawUrl);
@@ -404,54 +459,19 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
 
   /// Google 翻訳フローで WebView 内に留めたいホスト（リダイレクト・同意画面など）。
   bool _isGoogleInAppNavigationHost(Uri? destUri) {
-    final host = destUri?.host;
-    if (host == null || host.isEmpty) return false;
-    final h = host.toLowerCase();
-    if (h == 'translate.google.com' || h.endsWith('.translate.google.com')) {
-      return true;
-    }
-    if (h == 'translate.google.co.jp' || h.endsWith('.translate.google.co.jp')) {
-      return true;
-    }
-    if (h == 'consent.google.com' ||
-        h == 'accounts.google.com' ||
-        h == 'ogs.google.com') {
-      return true;
-    }
-    final path = destUri?.path.toLowerCase() ?? '';
-    if ((h == 'www.google.com' || h == 'google.com') && path.contains('translate')) {
-      return true;
-    }
-    // Google 翻訳のプロキシ（例: hex-ooo.translate.goog）
-    if (h.endsWith('.translate.goog')) {
-      return true;
-    }
-    return false;
+    if (destUri == null) return false;
+    final h = destUri.host.toLowerCase();
+    if (h.isEmpty) return false;
+    if (_isGoogleConsentFlowHost(h)) return true;
+    return _isTranslateFamilyUri(destUri);
   }
 
   /// 機械翻訳の本文が載ったとみなしてモーダルを閉じてよい URL（同意画面だけでは閉じない）。
   bool _shouldCompleteMachineTranslatePaintUrl(Uri? uri) {
     if (uri == null) return false;
     final h = uri.host.toLowerCase();
-    if (h == 'consent.google.com' ||
-        h == 'accounts.google.com' ||
-        h == 'ogs.google.com') {
-      return false;
-    }
-    if (h.endsWith('.translate.goog')) {
-      return true;
-    }
-    if (h == 'translate.google.com' || h.endsWith('.translate.google.com')) {
-      return true;
-    }
-    if (h == 'translate.google.co.jp' || h.endsWith('.translate.google.co.jp')) {
-      return true;
-    }
-    final path = uri.path.toLowerCase();
-    if ((h == 'www.google.com' || h == 'google.com') && path.contains('translate')) {
-      return true;
-    }
-    return false;
+    if (_isGoogleConsentFlowHost(h)) return false;
+    return _isTranslateFamilyUri(uri);
   }
 
   void _signalMachineTranslatePagePaintedIfWaiting(String url) {
@@ -697,366 +717,6 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
     _showSnackBar(context, 'URLをコピーしました');
   }
 
-  Widget _buildLanguageToggle() {
-    return SegmentedButton<_DetailLanguage>(
-      segments: const [
-        ButtonSegment<_DetailLanguage>(
-          value: _DetailLanguage.ja,
-          label: Text('日本語'),
-          icon: Icon(Icons.translate, size: 16),
-        ),
-        ButtonSegment<_DetailLanguage>(
-          value: _DetailLanguage.original,
-          label: Text('原文'),
-          icon: Icon(Icons.language, size: 16),
-        ),
-      ],
-      selected: {_language},
-      onSelectionChanged: (selection) {
-        setState(() {
-          _language = selection.first;
-        });
-      },
-    );
-  }
-
-  Widget _buildOverviewTab(ThemeData theme) {
-    final showOriginalSubTitle =
-        _language == _DetailLanguage.ja && _hasTranslatedTitle;
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildLanguageToggle(),
-          const SizedBox(height: 14),
-          if (story.domain != null)
-            Text(
-              story.domain!,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.primary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          const SizedBox(height: 8),
-          Text(
-            _titleForSelectedLanguage,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              height: 1.35,
-            ),
-          ),
-          if (showOriginalSubTitle) ...[
-            const SizedBox(height: 10),
-            Text(
-              story.title,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                height: 1.4,
-              ),
-            ),
-          ],
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _MetaChip(icon: Icons.arrow_upward, label: '${story.score}'),
-              _MetaChip(icon: Icons.chat_bubble_outline, label: '${story.descendants}'),
-              _MetaChip(icon: Icons.person_outline, label: story.by),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'ストーリー・コメントの一次ソースは Hacker News です。'
-            '要約・コメント傾向・翻訳テキストはアプリ内の AI により生成される場合があります。',
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.58),
-              height: 1.45,
-            ),
-          ),
-          const SizedBox(height: 20),
-          if (_language == _DetailLanguage.original) ...[
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                '要約は日本語向けです。「原文」では英語タイトルを表示します。',
-                style: theme.textTheme.bodySmall,
-              ),
-            ),
-            const SizedBox(height: 14),
-          ],
-          if (_hasSummaryShort || _hasSummaryPoints) ...[
-            Text(
-              '要約',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 10),
-            if (_hasSummaryShort)
-              Text(
-                story.enrichment!.summaryShort!,
-                style: theme.textTheme.bodyLarge?.copyWith(height: 1.55),
-              ),
-            if (_hasSummaryPoints) ...[
-              const SizedBox(height: 12),
-              ...story.enrichment!.summaryPoints.map(
-                (point) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('・'),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          point,
-                          style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-            const SizedBox(height: 20),
-          ],
-          if (story.hasEnrichment && story.enrichment!.tags.isNotEmpty) ...[
-            Text(
-              'タグ',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: story.enrichment!.tags
-                  .map(
-                    (tag) => Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        tag,
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  )
-                  .toList(),
-            ),
-            const SizedBox(height: 24),
-          ],
-          if (_wantsCommentExperience && _trendFuture != null) ...[
-            FutureBuilder<CommentTrendUiResult>(
-              future: _trendFuture!,
-              builder: (context, trendSnap) {
-                return CommentTrendInsightSection(
-                  snapshot: trendSnap,
-                  onRetry: () {
-                    setState(() {
-                      _trendFuture = _loadTrendInsight();
-                    });
-                  },
-                );
-              },
-            ),
-            const SizedBox(height: 20),
-          ],
-          Text(
-            'コメント',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 10),
-          _buildCommentsSection(theme),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCommentsSection(ThemeData theme) {
-    return FutureBuilder<List<_TranslatedComment>>(
-      future: _commentsFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-        if (snapshot.hasError) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('コメント翻訳の取得に失敗しました'),
-                  const SizedBox(height: 8),
-                  OutlinedButton(
-                    onPressed: _reloadCommentsAndTrend,
-                    child: const Text('再試行'),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
-        final comments = snapshot.data ?? const <_TranslatedComment>[];
-        if (comments.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 16),
-            child: Padding(
-              padding: EdgeInsets.all(20),
-              child: Text('翻訳コメントはまだありません'),
-            ),
-          );
-        }
-
-        return Column(
-          children: [
-            for (final item in comments) ...[
-              Builder(
-                builder: (_) {
-            final text = _language == _DetailLanguage.ja
-                ? item.translatedText
-                : item.originalText;
-            final subText = _language == _DetailLanguage.ja
-                ? item.originalText
-                : item.translatedText;
-            final sameBody =
-                item.translatedText.trim() == item.originalText.trim();
-            return _TranslatedCommentCard(
-              item: item,
-              primaryText: text,
-              secondaryText: subText,
-              secondaryLabel: _language == _DetailLanguage.ja ? '原文' : '翻訳',
-              showSecondary: !sameBody,
-              fallbackCaption: sameBody && _language == _DetailLanguage.ja
-                  ? 'サーバー翻訳未取得（App Check 等）。原文表示中'
-                  : null,
-            );
-                },
-              ),
-              const SizedBox(height: 12),
-            ],
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildArticleTab(ThemeData theme) {
-    if (_webViewController == null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                story.url == null ? Icons.forum_outlined : Icons.link_off,
-                size: 48,
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                story.url == null
-                    ? 'この投稿は HN 上のディスカッションです'
-                    : '元記事のURLが見つかりません',
-                style: theme.textTheme.bodyMedium,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                story.url == null
-                    ? 'コメントタブで議論の要約と翻訳をご覧ください'
-                    : '削除・非公開になっている可能性があります',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 20),
-              OutlinedButton.icon(
-                onPressed: () => launchUrl(
-                  Uri.parse('https://news.ycombinator.com/item?id=${story.id}'),
-                  mode: LaunchMode.inAppBrowserView,
-                ),
-                icon: const Icon(Icons.open_in_new, size: 16),
-                label: const Text('HN で見る'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        Container(
-          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          child: Row(
-            children: [
-              TextButton.icon(
-                onPressed: () => _launchMachineTranslatedArticle(context),
-                icon: const Icon(Icons.translate, size: 16),
-                label: const Text('翻訳'),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ),
-              const Spacer(),
-              TextButton.icon(
-                onPressed: () => _launchStoryUrl(context),
-                icon: const Icon(Icons.open_in_new, size: 16),
-                label: const Text('外部で開く'),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: WebViewWidget(
-            controller: _webViewController!,
-            gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
-              Factory<OneSequenceGestureRecognizer>(VerticalDragGestureRecognizer.new),
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
   void _showSnackBar(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
@@ -1216,10 +876,365 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildOverviewTab(theme),
-          _buildArticleTab(theme),
+          _StoryDetailOverviewTab(
+            story: story,
+            language: _language,
+            onLanguageChanged: (selection) {
+              setState(() => _language = selection.first);
+            },
+            wantsCommentExperience: _wantsCommentExperience,
+            trendFuture: _trendFuture,
+            onRetryTrend: () => setState(() => _trendFuture = _loadTrendInsight()),
+            commentsFuture: _commentsFuture,
+            onReloadComments: _reloadCommentsAndTrend,
+          ),
+          _StoryDetailArticleTab(
+            story: story,
+            webViewController: _webViewController,
+            onOpenTranslated: () => _launchMachineTranslatedArticle(context),
+            onOpenExternal: () => _launchStoryUrl(context),
+          ),
         ],
       ),
+    );
+  }
+}
+
+class _StoryDetailOverviewTab extends StatelessWidget {
+  final Story story;
+  final _DetailLanguage language;
+  final ValueChanged<Set<_DetailLanguage>> onLanguageChanged;
+  final bool wantsCommentExperience;
+  final Future<CommentTrendUiResult>? trendFuture;
+  final VoidCallback onRetryTrend;
+  final Future<List<_TranslatedComment>>? commentsFuture;
+  final VoidCallback onReloadComments;
+
+  const _StoryDetailOverviewTab({
+    required this.story,
+    required this.language,
+    required this.onLanguageChanged,
+    required this.wantsCommentExperience,
+    required this.trendFuture,
+    required this.onRetryTrend,
+    required this.commentsFuture,
+    required this.onReloadComments,
+  });
+
+  Widget _commentsSection(BuildContext context) {
+    return FutureBuilder<List<_TranslatedComment>>(
+      future: commentsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.hasError) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('コメント翻訳の取得に失敗しました'),
+                  const SizedBox(height: 8),
+                  OutlinedButton(
+                    onPressed: onReloadComments,
+                    child: const Text('再試行'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        final comments = snapshot.data ?? const <_TranslatedComment>[];
+        if (comments.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Padding(
+              padding: EdgeInsets.all(20),
+              child: Text('翻訳コメントはまだありません'),
+            ),
+          );
+        }
+
+        return Column(
+          children: [
+            for (final item in comments) ...[
+              _storyDetailCommentEntry(item, language),
+              const SizedBox(height: 12),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final showOriginalSubTitle =
+        language == _DetailLanguage.ja && story.hasDistinctTranslatedTitle;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SegmentedButton<_DetailLanguage>(
+            segments: const [
+              ButtonSegment<_DetailLanguage>(
+                value: _DetailLanguage.ja,
+                label: Text('日本語'),
+                icon: Icon(Icons.translate, size: 16),
+              ),
+              ButtonSegment<_DetailLanguage>(
+                value: _DetailLanguage.original,
+                label: Text('原文'),
+                icon: Icon(Icons.language, size: 16),
+              ),
+            ],
+            selected: {language},
+            onSelectionChanged: onLanguageChanged,
+          ),
+          const SizedBox(height: 14),
+          if (story.domain != null)
+            Text(
+              story.domain!,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          const SizedBox(height: 8),
+          Text(
+            _titleForDetailLanguage(story, language),
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              height: 1.35,
+            ),
+          ),
+          if (showOriginalSubTitle) ...[
+            const SizedBox(height: 10),
+            Text(
+              story.title,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                height: 1.4,
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _MetaChip(icon: Icons.arrow_upward, label: '${story.score}'),
+              _MetaChip(icon: Icons.chat_bubble_outline, label: '${story.descendants}'),
+              _MetaChip(icon: Icons.person_outline, label: story.by),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'ストーリー・コメントの一次ソースは Hacker News です。'
+            '要約・コメント傾向・翻訳テキストはアプリ内の AI により生成される場合があります。',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.58),
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 20),
+          if (language == _DetailLanguage.original) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '要約は日本語向けです。「原文」では英語タイトルを表示します。',
+                style: theme.textTheme.bodySmall,
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
+          if (story.hasSummaryShortContent || story.hasSummaryPointsContent) ...[
+            _detailSectionTitle(context, '要約'),
+            const SizedBox(height: 10),
+            if (story.hasSummaryShortContent)
+              Text(
+                story.enrichment!.summaryShort!,
+                style: theme.textTheme.bodyLarge?.copyWith(height: 1.55),
+              ),
+            if (story.hasSummaryPointsContent) ...[
+              const SizedBox(height: 12),
+              ...story.enrichment!.summaryPoints.map(
+                (point) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('・'),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          point,
+                          style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 20),
+          ],
+          if (story.hasEnrichment && story.enrichment!.tags.isNotEmpty) ...[
+            _detailSectionTitle(context, 'タグ'),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: story.enrichment!.tags
+                  .map(
+                    (tag) => Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        tag,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+            const SizedBox(height: 24),
+          ],
+          if (wantsCommentExperience && trendFuture != null) ...[
+            FutureBuilder<CommentTrendUiResult>(
+              future: trendFuture!,
+              builder: (context, trendSnap) {
+                return CommentTrendInsightSection(
+                  snapshot: trendSnap,
+                  onRetry: onRetryTrend,
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+          ],
+          _detailSectionTitle(context, 'コメント'),
+          const SizedBox(height: 10),
+          _commentsSection(context),
+        ],
+      ),
+    );
+  }
+}
+
+class _StoryDetailArticleTab extends StatelessWidget {
+  final Story story;
+  final WebViewController? webViewController;
+  final VoidCallback onOpenTranslated;
+  final VoidCallback onOpenExternal;
+
+  const _StoryDetailArticleTab({
+    required this.story,
+    required this.webViewController,
+    required this.onOpenTranslated,
+    required this.onOpenExternal,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final c = webViewController;
+    if (c == null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                story.url == null ? Icons.forum_outlined : Icons.link_off,
+                size: 48,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                story.url == null
+                    ? 'この投稿は HN 上のディスカッションです'
+                    : '元記事のURLが見つかりません',
+                style: theme.textTheme.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                story.url == null
+                    ? 'コメントタブで議論の要約と翻訳をご覧ください'
+                    : '削除・非公開になっている可能性があります',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              OutlinedButton.icon(
+                onPressed: () => launchUrl(
+                  Uri.parse('https://news.ycombinator.com/item?id=${story.id}'),
+                  mode: LaunchMode.inAppBrowserView,
+                ),
+                icon: const Icon(Icons.open_in_new, size: 16),
+                label: const Text('HN で見る'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        Container(
+          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: Row(
+            children: [
+              TextButton.icon(
+                onPressed: onOpenTranslated,
+                icon: const Icon(Icons.translate, size: 16),
+                label: const Text('翻訳'),
+                style: _articleTabToolbarTextButtonStyle,
+              ),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: onOpenExternal,
+                icon: const Icon(Icons.open_in_new, size: 16),
+                label: const Text('外部で開く'),
+                style: _articleTabToolbarTextButtonStyle,
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: WebViewWidget(
+            controller: c,
+            gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+              Factory<OneSequenceGestureRecognizer>(VerticalDragGestureRecognizer.new),
+            },
+          ),
+        ),
+      ],
     );
   }
 }
