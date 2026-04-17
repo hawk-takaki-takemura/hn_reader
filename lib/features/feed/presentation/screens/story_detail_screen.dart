@@ -44,6 +44,18 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
   Future<CommentTrendUiResult>? _trendFuture;
   WebViewController? _webViewController;
 
+  /// `loadRequest` が返るまでの待ち上限。超えたらモーダルを閉じてユーザー操作を戻す。
+  static const Duration _machineTranslateLoadTimeout = Duration(seconds: 40);
+
+  /// 翻訳後のページが `onPageFinished` するまでの待ち上限（サイトが重い場合）。
+  static const Duration _machineTranslatePagePaintTimeout = Duration(seconds: 90);
+
+  /// モーダルが一瞬で閉じて見えなくなるのを防ぐ最短表示時間。
+  static const Duration _machineTranslateOverlayMinVisible = Duration(milliseconds: 560);
+
+  /// 「翻訳を開く」待ち。`onPageFinished` で実表示に近い URL になったら完了させる。
+  Completer<void>? _machineTranslatePageReadyCompleter;
+
   Story get story => widget.args.story;
 
   /// コメント一覧・傾向ブロックを出すか（HN 上にコメントがある、または Firestore 温め済み）。
@@ -417,6 +429,47 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
     return false;
   }
 
+  /// 機械翻訳の本文が載ったとみなしてモーダルを閉じてよい URL（同意画面だけでは閉じない）。
+  bool _shouldCompleteMachineTranslatePaintUrl(Uri? uri) {
+    if (uri == null) return false;
+    final h = uri.host.toLowerCase();
+    if (h == 'consent.google.com' ||
+        h == 'accounts.google.com' ||
+        h == 'ogs.google.com') {
+      return false;
+    }
+    if (h.endsWith('.translate.goog')) {
+      return true;
+    }
+    if (h == 'translate.google.com' || h.endsWith('.translate.google.com')) {
+      return true;
+    }
+    if (h == 'translate.google.co.jp' || h.endsWith('.translate.google.co.jp')) {
+      return true;
+    }
+    final path = uri.path.toLowerCase();
+    if ((h == 'www.google.com' || h == 'google.com') && path.contains('translate')) {
+      return true;
+    }
+    return false;
+  }
+
+  void _signalMachineTranslatePagePaintedIfWaiting(String url) {
+    final c = _machineTranslatePageReadyCompleter;
+    if (c == null || c.isCompleted) return;
+    if (!_shouldCompleteMachineTranslatePaintUrl(Uri.tryParse(url))) return;
+    if (kDebugMode) {
+      debugPrint('[StoryDetail:WebView] machine translate paint url=$url');
+    }
+    c.complete();
+  }
+
+  void _cancelMachineTranslatePageWaitIfPending() {
+    final c = _machineTranslatePageReadyCompleter;
+    if (c == null || c.isCompleted) return;
+    c.complete();
+  }
+
   void _setupWebViewController() {
     final target = _originalArticleUri;
     if (target == null) {
@@ -479,6 +532,9 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
             }
             return NavigationDecision.navigate;
           },
+          onPageFinished: (String url) {
+            _signalMachineTranslatePagePaintedIfWaiting(url);
+          },
         ),
       )
       ..loadRequest(target);
@@ -499,21 +555,135 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
     if (kDebugMode) {
       debugPrint('[StoryDetail:WebView] Google翻訳 loadRequest uri=$uri');
     }
+
+    BuildContext? loadingDialogContext;
+
+    void dismissLoadingDialog() {
+      final d = loadingDialogContext;
+      loadingDialogContext = null;
+      if (d != null && d.mounted) {
+        Navigator.of(d, rootNavigator: true).pop();
+      }
+    }
+
+    if (!context.mounted) return;
+    final overlayStopwatch = Stopwatch()..start();
+    showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      useRootNavigator: true,
+      builder: (dialogCtx) {
+        loadingDialogContext = dialogCtx;
+        final theme = Theme.of(dialogCtx);
+        return PopScope<void>(
+          onPopInvokedWithResult: (didPop, result) {
+            if (didPop) {
+              _cancelMachineTranslatePageWaitIfPending();
+            }
+          },
+          child: AlertDialog(
+            icon: Icon(Icons.translate, color: theme.colorScheme.primary),
+            title: const Text('翻訳を開いています'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 8),
+                const Center(child: CircularProgressIndicator()),
+                const SizedBox(height: 20),
+                Text(
+                  'Google 翻訳で元記事を表示するまでお待ちください。'
+                  'サイトによっては数十秒かかることがあります。',
+                  style: theme.textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '画面外をタップするか「閉じる」でモーダルだけ閉じられます（読み込みは続きます）。',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogCtx, rootNavigator: true).pop(),
+                child: const Text('閉じる'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    // showDialog の直後に await loadRequest すると、同一フレーム内で finally が走り
+    // オーバーレイが描画される前に pop され、モーダルが見えない（WebView の loadRequest は早く返る）。
+    await WidgetsBinding.instance.endOfFrame;
+    await Future<void>.delayed(Duration.zero);
+    await WidgetsBinding.instance.endOfFrame;
+    if (!context.mounted) return;
+
+    var openedTranslate = false;
+    _machineTranslatePageReadyCompleter = Completer<void>();
+    final pageReady = _machineTranslatePageReadyCompleter!;
     try {
-      await c.loadRequest(uri);
+      await c.loadRequest(uri).timeout(_machineTranslateLoadTimeout);
+      if (kDebugMode) {
+        debugPrint('[StoryDetail:WebView] Google翻訳 loadRequest returned, await first paint');
+      }
+      await pageReady.future.timeout(
+        _machineTranslatePagePaintTimeout,
+        onTimeout: () {
+          if (kDebugMode) {
+            debugPrint(
+              '[StoryDetail:WebView] machine translate page paint timeout '
+              '(${_machineTranslatePagePaintTimeout.inSeconds}s)',
+            );
+          }
+          if (context.mounted) {
+            _showSnackBar(
+              context,
+              '表示まで時間がかかっています。本文タブで読み込み状況をご確認ください。',
+            );
+          }
+        },
+      );
+      openedTranslate = true;
+      if (kDebugMode) {
+        debugPrint('[StoryDetail:WebView] Google翻訳 ready, animateTo 本文タブ');
+      }
+    } on TimeoutException catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('[StoryDetail:WebView] loadRequest timeout: $e\n$st');
+      }
+      if (context.mounted) {
+        _showSnackBar(
+          context,
+          '接続がタイムアウトしました。ネットワークを確認して、もう一度お試しください',
+        );
+      }
     } catch (e, st) {
       if (kDebugMode) {
         debugPrint('[StoryDetail:WebView] loadRequest failed: $e\n$st');
       }
-      if (!context.mounted) return;
-      _showSnackBar(context, '翻訳ページを開けませんでした');
-      return;
+      if (context.mounted) {
+        _showSnackBar(context, '翻訳ページを開けませんでした');
+      }
+    } finally {
+      _machineTranslatePageReadyCompleter = null;
+      final minMs = _machineTranslateOverlayMinVisible.inMilliseconds;
+      final remaining = minMs - overlayStopwatch.elapsedMilliseconds;
+      if (remaining > 0) {
+        await Future<void>.delayed(Duration(milliseconds: remaining));
+      }
+      dismissLoadingDialog();
     }
-    if (kDebugMode) {
-      debugPrint('[StoryDetail:WebView] Google翻訳 loadRequest ok, animateTo 本文タブ');
-    }
+
     if (!mounted) return;
-    _tabController.animateTo(1);
+    if (openedTranslate) {
+      _tabController.animateTo(1);
+    }
   }
 
   Future<void> _copyStoryUrl() async {
