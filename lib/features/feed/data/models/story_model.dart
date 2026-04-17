@@ -31,6 +31,31 @@ class StoryModel extends Story {
     );
   }
 
+  /// Callable `getRecommendedFeed` の各要素用（`time` は Unix 秒の int）。
+  factory StoryModel.fromRecommendedFeedMap(Map<String, dynamic> json) {
+    final enrichMap = json['enrichment'] as Map<String, dynamic>?;
+    StoryEnrichment? enrichment;
+    if (enrichMap != null && enrichMap['schema_version'] == 1) {
+      enrichment = StoryEnrichment.fromMap(enrichMap);
+    }
+    final rawTime = json['time'];
+    final timeSeconds =
+        rawTime is int ? rawTime : (rawTime is num ? rawTime.toInt() : 0);
+
+    return StoryModel(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      title: json['title'] as String? ?? '',
+      url: json['url'] as String?,
+      by: (json['by'] as String?) ?? '',
+      score: (json['score'] as num?)?.toInt() ?? 0,
+      descendants: (json['descendants'] as num?)?.toInt() ?? 0,
+      time: timeSeconds,
+      type: json['type'] as String? ?? 'story',
+      enrichStatus: json['enrich_status'] as String? ?? 'idle',
+      enrichment: enrichment,
+    );
+  }
+
   factory StoryModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>?;
     if (data == null) {
@@ -46,9 +71,8 @@ class StoryModel extends Story {
     }
     final enrichMap = data['enrichment'] as Map<String, dynamic>?;
     final rawTime = data['time'];
-    final timeSeconds = rawTime is Timestamp
-        ? rawTime.seconds
-        : (rawTime is int ? rawTime : 0);
+    final timeSeconds =
+        rawTime is Timestamp ? rawTime.seconds : (rawTime is int ? rawTime : 0);
 
     StoryEnrichment? enrichment;
     if (enrichMap != null && enrichMap['schema_version'] == 1) {
@@ -61,7 +85,8 @@ class StoryModel extends Story {
       url: data['url'] as String?,
       by: (data['by'] as String?) ?? '',
       score: (data['score'] as num?)?.toInt() ?? 0,
-      descendants: (data['descendants'] as num?)?.toInt() ??
+      descendants:
+          (data['descendants'] as num?)?.toInt() ??
           (data['kids_count'] as num?)?.toInt() ??
           0,
       time: timeSeconds,

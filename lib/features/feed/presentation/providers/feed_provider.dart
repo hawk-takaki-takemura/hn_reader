@@ -1,12 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dio/dio.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/constants/api_constants.dart';
+import '../../../preferences/domain/topic_story_matcher.dart';
+import '../../../preferences/presentation/providers/topic_preferences_provider.dart';
 import '../../data/datasources/firestore_datasource.dart';
 import '../../data/datasources/hn_remote_datasource.dart';
+import '../../data/datasources/recommended_feed_remote_datasource.dart';
 import '../../data/repositories/story_repository_impl.dart';
 import '../../domain/entities/story.dart';
 import '../../domain/repositories/story_repository.dart';
@@ -49,6 +53,11 @@ final storyRepositoryProvider = Provider<StoryRepository>((ref) {
   );
 });
 
+final recommendedFeedRemoteDataSourceProvider =
+    Provider<RecommendedFeedRemoteDataSource>((ref) {
+      return RecommendedFeedRemoteDataSource();
+    });
+
 final getTopStoriesProvider = Provider<GetTopStories>((ref) {
   return GetTopStories(ref.watch(storyRepositoryProvider));
 });
@@ -70,14 +79,38 @@ final feedProvider = AsyncNotifierProvider<FeedNotifier, List<Story>>(
 class FeedNotifier extends AsyncNotifier<List<Story>> {
   @override
   Future<List<Story>> build() async {
-    return _fetch();
+    final feedType = ref.watch(feedTypeProvider);
+    if (feedType == FeedType.top) {
+      ref.watch(topicPreferencesProvider);
+    }
+    return _fetch(feedType);
   }
 
-  Future<List<Story>> _fetch() async {
-    final feedType = ref.watch(feedTypeProvider);
+  Future<List<Story>> _fetch(FeedType feedType) async {
     switch (feedType) {
       case FeedType.top:
-        return ref.read(getTopStoriesProvider).call();
+        final topicState = await ref.read(topicPreferencesProvider.future);
+        final genres = topicState.selectedGenres;
+        if (genres.isEmpty) {
+          return ref.read(getTopStoriesProvider).call();
+        }
+        try {
+          final fromApi = await ref
+              .read(recommendedFeedRemoteDataSourceProvider)
+              .fetch(genreNames: genres.map((g) => g.name).toList());
+          if (fromApi.isNotEmpty) {
+            return fromApi;
+          }
+          final top = await ref.read(getTopStoriesProvider).call();
+          return sortStoriesByTopicMatch(stories: top, selectedGenres: genres);
+        } catch (e, st) {
+          debugPrint(
+            'getRecommendedFeed failed, using HN top + client sort: $e',
+          );
+          debugPrint('$st');
+          final top = await ref.read(getTopStoriesProvider).call();
+          return sortStoriesByTopicMatch(stories: top, selectedGenres: genres);
+        }
       case FeedType.new_:
         return ref.read(getNewStoriesProvider).call();
       case FeedType.best:
@@ -88,6 +121,7 @@ class FeedNotifier extends AsyncNotifier<List<Story>> {
   // 再読み込み
   Future<void> refresh() async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(_fetch);
+    final feedType = ref.read(feedTypeProvider);
+    state = await AsyncValue.guard(() => _fetch(feedType));
   }
 }

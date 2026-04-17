@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../ads/presentation/providers/ads_provider.dart';
+import '../../../preferences/presentation/providers/topic_preferences_provider.dart';
+import '../../../preferences/presentation/screens/topic_settings_screen.dart';
 import '../../../ads/presentation/widgets/banner_ad_widget.dart';
 import '../../../ads/presentation/widgets/native_ad_widget.dart';
 import '../../../translation/presentation/providers/translation_provider.dart';
@@ -24,6 +26,7 @@ class FeedScreen extends ConsumerStatefulWidget {
 class _FeedScreenState extends ConsumerState<FeedScreen> {
   final _scrollController = ScrollController();
   bool _showScrollButton = false;
+  bool _didCheckOnboarding = false;
 
   void _openStoryDetail(Story story) {
     ref.read(readHistoryProvider.notifier).markAsRead(story.id);
@@ -74,6 +77,17 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeShowTopicOnboarding();
+    });
+  }
+
+  Future<void> _maybeShowTopicOnboarding() async {
+    if (_didCheckOnboarding || !mounted) return;
+    _didCheckOnboarding = true;
+    final prefs = await ref.read(topicPreferencesProvider.future);
+    if (!mounted || prefs.hasCompletedOnboarding) return;
+    await showTopicOnboardingDialog(context, ref);
   }
 
   void _onScroll() {
@@ -108,6 +122,13 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
       appBar: AppBar(
         title: const Text('Yomi'),
         centerTitle: false,
+        actions: [
+          IconButton(
+            onPressed: () => context.push('/settings/topics'),
+            icon: const Icon(Icons.tune),
+            tooltip: '興味ジャンル設定',
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(44),
           child: _FeedTypeTab(
@@ -118,97 +139,99 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
           ),
         ),
       ),
-      floatingActionButton: _showScrollButton
-          ? FloatingActionButton.small(
-              onPressed: () {
-                _scrollController.animateTo(
-                  0,
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOut,
-                );
-              },
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              child: const Icon(Icons.arrow_upward, color: Colors.white),
-            )
-          : null,
-      bottomNavigationBar: const SafeArea(
-        top: false,
-        child: BannerAdWidget(),
-      ),
-      body: feedAsync.when(
-        loading: () => _LoadingList(controller: _scrollController),
-        error: (e, _) => _ErrorView(
-          message: e.toString(),
-          onRetry: () => ref.read(feedProvider.notifier).refresh(),
-        ),
-        data: (stories) {
-          final translatedAsync =
-              ref.watch(translatedStoriesProvider(stories));
-          return translatedAsync.when(
-            loading: () => _LoadingList(controller: _scrollController),
-            error: (e, _) => RefreshIndicator(
-              onRefresh: () => ref.read(feedProvider.notifier).refresh(),
-              child: ListView.builder(
-                controller: _scrollController,
-                physics: const AlwaysScrollableScrollPhysics(),
-                itemCount: () {
-                  final interval = ref.watch(nativeAdIntervalProvider);
-                  final adsEnabled = ref.watch(adsEnabledProvider);
-                  return adsEnabled
-                      ? _itemCount(stories.length, interval)
-                      : stories.length;
-                }(),
-                itemBuilder: (context, index) {
-                  final interval = ref.watch(nativeAdIntervalProvider);
-                  final adsEnabled = ref.watch(adsEnabledProvider);
-                  if (!adsEnabled) {
-                    final story = stories[index];
-                    final isRead =
-                        ref.watch(readHistoryProvider).contains(story.id);
-                    return StoryCard(
-                      story: story,
-                      isRead: isRead,
-                      onTap: () => _openStoryDetail(story),
-                    );
-                  }
-                  return _itemBuilder(context, index, stories, interval);
-                },
-              ),
-            ),
-            data: (translatedStories) => RefreshIndicator(
-              onRefresh: () => ref.read(feedProvider.notifier).refresh(),
-              child: ListView.builder(
-                controller: _scrollController,
-                physics: const AlwaysScrollableScrollPhysics(),
-                itemCount: () {
-                  final interval = ref.watch(nativeAdIntervalProvider);
-                  final adsEnabled = ref.watch(adsEnabledProvider);
-                  return adsEnabled
-                      ? _itemCount(translatedStories.length, interval)
-                      : translatedStories.length;
-                }(),
-                itemBuilder: (context, index) {
-                  final interval = ref.watch(nativeAdIntervalProvider);
-                  final adsEnabled = ref.watch(adsEnabledProvider);
-                  if (!adsEnabled) {
-                    final story = translatedStories[index];
-                    final isRead =
-                        ref.watch(readHistoryProvider).contains(story.id);
-                    return StoryCard(
-                      story: story,
-                      isRead: isRead,
-                      onTap: () => _openStoryDetail(story),
-                    );
-                  }
-                  return _itemBuilder(
-                    context,
-                    index,
-                    translatedStories,
-                    interval,
+      floatingActionButton:
+          _showScrollButton
+              ? FloatingActionButton.small(
+                onPressed: () {
+                  _scrollController.animateTo(
+                    0,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOut,
                   );
                 },
-              ),
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                child: const Icon(Icons.arrow_upward, color: Colors.white),
+              )
+              : null,
+      bottomNavigationBar: const SafeArea(top: false, child: BannerAdWidget()),
+      body: feedAsync.when(
+        loading: () => _LoadingList(controller: _scrollController),
+        error:
+            (e, _) => _ErrorView(
+              message: e.toString(),
+              onRetry: () => ref.read(feedProvider.notifier).refresh(),
             ),
+        data: (stories) {
+          final translatedAsync = ref.watch(translatedStoriesProvider(stories));
+          return translatedAsync.when(
+            loading: () => _LoadingList(controller: _scrollController),
+            error:
+                (e, _) => RefreshIndicator(
+                  onRefresh: () => ref.read(feedProvider.notifier).refresh(),
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    itemCount: () {
+                      final interval = ref.watch(nativeAdIntervalProvider);
+                      final adsEnabled = ref.watch(adsEnabledProvider);
+                      return adsEnabled
+                          ? _itemCount(stories.length, interval)
+                          : stories.length;
+                    }(),
+                    itemBuilder: (context, index) {
+                      final interval = ref.watch(nativeAdIntervalProvider);
+                      final adsEnabled = ref.watch(adsEnabledProvider);
+                      if (!adsEnabled) {
+                        final story = stories[index];
+                        final isRead = ref
+                            .watch(readHistoryProvider)
+                            .contains(story.id);
+                        return StoryCard(
+                          story: story,
+                          isRead: isRead,
+                          onTap: () => _openStoryDetail(story),
+                        );
+                      }
+                      return _itemBuilder(context, index, stories, interval);
+                    },
+                  ),
+                ),
+            data:
+                (translatedStories) => RefreshIndicator(
+                  onRefresh: () => ref.read(feedProvider.notifier).refresh(),
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    itemCount: () {
+                      final interval = ref.watch(nativeAdIntervalProvider);
+                      final adsEnabled = ref.watch(adsEnabledProvider);
+                      return adsEnabled
+                          ? _itemCount(translatedStories.length, interval)
+                          : translatedStories.length;
+                    }(),
+                    itemBuilder: (context, index) {
+                      final interval = ref.watch(nativeAdIntervalProvider);
+                      final adsEnabled = ref.watch(adsEnabledProvider);
+                      if (!adsEnabled) {
+                        final story = translatedStories[index];
+                        final isRead = ref
+                            .watch(readHistoryProvider)
+                            .contains(story.id);
+                        return StoryCard(
+                          story: story,
+                          isRead: isRead,
+                          onTap: () => _openStoryDetail(story),
+                        );
+                      }
+                      return _itemBuilder(
+                        context,
+                        index,
+                        translatedStories,
+                        interval,
+                      );
+                    },
+                  ),
+                ),
           );
         },
       ),
@@ -221,17 +244,14 @@ class _FeedTypeTab extends StatelessWidget {
   final FeedType selected;
   final ValueChanged<FeedType> onChanged;
 
-  const _FeedTypeTab({
-    required this.selected,
-    required this.onChanged,
-  });
+  const _FeedTypeTab({required this.selected, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
         _Tab(
-          label: 'トップ',
+          label: 'あなた向け',
           isSelected: selected == FeedType.top,
           onTap: () => onChanged(FeedType.top),
         ),
@@ -263,24 +283,23 @@ class _Tab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isOrangeBar = Theme.of(context).appBarTheme.backgroundColor ==
+    final isOrangeBar =
+        Theme.of(context).appBarTheme.backgroundColor ==
         const Color(0xFFFF6600);
 
     final Color selectedBorderColor =
         isOrangeBar ? Colors.white : Theme.of(context).colorScheme.primary;
     final Color selectedTextColor =
         isOrangeBar ? Colors.white : Theme.of(context).colorScheme.primary;
-    final Color unselectedTextColor = isOrangeBar
-        ? Colors.white.withValues(alpha: 0.6)
-        : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6);
+    final Color unselectedTextColor =
+        isOrangeBar
+            ? Colors.white.withValues(alpha: 0.6)
+            : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6);
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 10,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
@@ -292,11 +311,9 @@ class _Tab extends StatelessWidget {
         child: Text(
           label,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: isSelected ? selectedTextColor : unselectedTextColor,
-                fontWeight: isSelected
-                    ? FontWeight.bold
-                    : FontWeight.normal,
-              ),
+            color: isSelected ? selectedTextColor : unselectedTextColor,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          ),
         ),
       ),
     );
@@ -313,9 +330,8 @@ class _LoadingList extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView.builder(
       controller: controller,
-      physics: controller != null
-          ? const AlwaysScrollableScrollPhysics()
-          : null,
+      physics:
+          controller != null ? const AlwaysScrollableScrollPhysics() : null,
       itemCount: 10,
       itemBuilder: (context, _) => const _SkeletonCard(),
     );
@@ -331,10 +347,7 @@ class _SkeletonCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(
-            color: Theme.of(context).dividerColor,
-            width: 0.5,
-          ),
+          bottom: BorderSide(color: Theme.of(context).dividerColor, width: 0.5),
         ),
       ),
       child: Column(
@@ -365,8 +378,7 @@ class _SkeletonBox extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color:
-            Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.08),
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(4),
       ),
     );
@@ -396,15 +408,12 @@ class _ErrorView extends StatelessWidget {
               message,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
           const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: onRetry,
-            child: const Text('再試行'),
-          ),
+          ElevatedButton(onPressed: onRetry, child: const Text('再試行')),
         ],
       ),
     );

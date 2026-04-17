@@ -5,6 +5,7 @@ import 'core/config/app_config.dart';
 import 'core/theme/app_theme.dart';
 import 'features/feed/presentation/screens/feed_screen.dart';
 import 'features/feed/presentation/screens/story_detail_screen.dart';
+import 'features/preferences/presentation/screens/topic_settings_screen.dart';
 
 class App extends StatelessWidget {
   const App({super.key});
@@ -23,10 +24,7 @@ class App extends StatelessWidget {
 
 final _router = GoRouter(
   routes: [
-    GoRoute(
-      path: '/',
-      builder: (context, state) => const FeedScreen(),
-    ),
+    GoRoute(path: '/', builder: (context, state) => const FeedScreen()),
     GoRoute(
       path: '/story',
       builder: (context, state) {
@@ -36,6 +34,10 @@ final _router = GoRouter(
         }
         return StoryDetailScreen(args: story);
       },
+    ),
+    GoRoute(
+      path: '/settings/topics',
+      builder: (context, state) => const TopicSettingsScreen(),
     ),
   ],
 );
