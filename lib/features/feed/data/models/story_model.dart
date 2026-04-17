@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../domain/entities/story.dart';
+import '../../domain/entities/story_comments_enrichment.dart';
 import '../../domain/entities/story_enrichment.dart';
 
 class StoryModel extends Story {
@@ -16,6 +17,7 @@ class StoryModel extends Story {
     required super.type,
     super.enrichStatus,
     super.enrichment,
+    super.commentsEnrichment,
   });
 
   factory StoryModel.fromJson(Map<String, dynamic> json) {
@@ -42,6 +44,9 @@ class StoryModel extends Story {
     final timeSeconds =
         rawTime is int ? rawTime : (rawTime is num ? rawTime.toInt() : 0);
 
+    final ceRaw = json['comments_enrichment'];
+    final commentsEnrichment = _parseCommentsEnrichment(ceRaw);
+
     return StoryModel(
       id: (json['id'] as num?)?.toInt() ?? 0,
       title: json['title'] as String? ?? '',
@@ -53,6 +58,7 @@ class StoryModel extends Story {
       type: json['type'] as String? ?? 'story',
       enrichStatus: json['enrich_status'] as String? ?? 'idle',
       enrichment: enrichment,
+      commentsEnrichment: commentsEnrichment,
     );
   }
 
@@ -79,6 +85,8 @@ class StoryModel extends Story {
       enrichment = StoryEnrichment.fromMap(enrichMap);
     }
 
+    final commentsEnrichment = _parseCommentsEnrichment(data['comments_enrichment']);
+
     return StoryModel(
       id: int.tryParse(doc.id) ?? (data['story_id'] as int? ?? 0),
       title: data['title'] as String? ?? '',
@@ -93,7 +101,13 @@ class StoryModel extends Story {
       type: data['type'] as String? ?? 'story',
       enrichStatus: data['enrich_status'] as String? ?? 'idle',
       enrichment: enrichment,
+      commentsEnrichment: commentsEnrichment,
     );
+  }
+
+  static StoryCommentsEnrichment? _parseCommentsEnrichment(Object? raw) {
+    if (raw is! Map) return null;
+    return StoryCommentsEnrichment.tryFromMap(Map<String, dynamic>.from(raw));
   }
 
   Map<String, dynamic> toJson() {
@@ -114,6 +128,7 @@ class StoryModel extends Story {
     String? translatedTitle,
     String? enrichStatus,
     StoryEnrichment? enrichment,
+    StoryCommentsEnrichment? commentsEnrichment,
   }) {
     return StoryModel(
       id: id,
@@ -127,6 +142,7 @@ class StoryModel extends Story {
       type: type,
       enrichStatus: enrichStatus ?? this.enrichStatus,
       enrichment: enrichment ?? this.enrichment,
+      commentsEnrichment: commentsEnrichment ?? this.commentsEnrichment,
     );
   }
 }

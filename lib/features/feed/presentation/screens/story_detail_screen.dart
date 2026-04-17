@@ -8,7 +8,12 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/constants/app_constants.dart';
+import '../../data/datasources/comment_trend_remote_datasource.dart';
+import '../../domain/entities/comment_trend_insight.dart';
 import '../../domain/entities/story.dart';
+import '../../domain/entities/story_comments_enrichment.dart';
+import '../widgets/comment_trend_insight_section.dart';
 
 class StoryDetailArgs {
   final Story story;
@@ -32,15 +37,34 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
   late final TabController _tabController;
   _DetailLanguage _language = _DetailLanguage.ja;
   Future<List<_TranslatedComment>>? _commentsFuture;
+  Future<CommentTrendUiResult>? _trendFuture;
   WebViewController? _webViewController;
 
   Story get story => widget.args.story;
+
+  /// コメント一覧・傾向ブロックを出すか（HN 上にコメントがある、または Firestore 温め済み）。
+  bool get _wantsCommentExperience =>
+      story.descendants > 0 || story.hasCachedCommentsPath;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _commentsFuture = _fetchTranslatedComments();
+    if (!_wantsCommentExperience) {
+      _commentsFuture = Future.value(const []);
+      _trendFuture = null;
+    } else if (story.hasCachedCommentsPath) {
+      final ce = story.commentsEnrichment!;
+      _commentsFuture = Future.value(_translatedCommentsFromEnrichment(ce));
+      _trendFuture = Future.value(
+        CommentTrendUiSuccess(
+          CommentTrendInsight.fromStoryCommentsEnrichment(ce),
+        ),
+      );
+    } else {
+      _commentsFuture = _fetchTranslatedComments();
+      _trendFuture = _loadTrendInsight();
+    }
     _setupWebViewController();
   }
 
@@ -100,6 +124,20 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
     }
   }
 
+  List<_TranslatedComment> _translatedCommentsFromEnrichment(
+    StoryCommentsEnrichment ce,
+  ) {
+    return ce.topComments
+        .map(
+          (c) => _TranslatedComment(
+            commentId: c.id,
+            originalText: c.textJa,
+            translatedText: c.textJa,
+          ),
+        )
+        .toList();
+  }
+
   Future<List<_TranslatedComment>> _fetchTranslatedComments() async {
     try {
       final callable = _functions().httpsCallable(
@@ -143,6 +181,51 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
       // fallback below
     }
     return _fetchCommentsFallback();
+  }
+
+  Future<CommentTrendUiResult> _loadTrendInsight() async {
+    try {
+      final comments = await _commentsFuture!;
+      if (comments.isEmpty) {
+        return const CommentTrendUiSkipped();
+      }
+      final snippets =
+          comments
+              .take(20)
+              .map((c) {
+                final t = c.translatedText.trim();
+                final body = t.isNotEmpty ? t : c.originalText.trim();
+                return <String, dynamic>{'commentId': c.commentId, 'text': body};
+              })
+              .where((m) => (m['text'] as String).isNotEmpty)
+              .toList();
+      if (snippets.isEmpty) {
+        return const CommentTrendUiSkipped();
+      }
+      final insight = await CommentTrendRemoteDataSource().analyze(
+        storyId: story.id,
+        limit: 20,
+        commentSnippets: snippets,
+      );
+      if (insight == null) {
+        return const CommentTrendUiFailed();
+      }
+      return CommentTrendUiSuccess(insight);
+    } catch (_) {
+      return const CommentTrendUiFailed();
+    }
+  }
+
+  void _reloadCommentsAndTrend() {
+    setState(() {
+      if (!_wantsCommentExperience) {
+        _commentsFuture = Future.value(const []);
+        _trendFuture = null;
+        return;
+      }
+      _commentsFuture = _fetchTranslatedComments();
+      _trendFuture = _loadTrendInsight();
+    });
   }
 
   Future<List<_TranslatedComment>> _fetchCommentsFallback() async {
@@ -402,6 +485,15 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
               _MetaChip(icon: Icons.person_outline, label: story.by),
             ],
           ),
+          const SizedBox(height: 10),
+          Text(
+            'ストーリー・コメントの一次ソースは Hacker News です。'
+            '要約・コメント傾向・翻訳テキストはアプリ内の AI により生成される場合があります。',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.58),
+              height: 1.45,
+            ),
+          ),
           const SizedBox(height: 20),
           if (_language == _DetailLanguage.original) ...[
             Container(
@@ -486,7 +578,22 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
             ),
             const SizedBox(height: 24),
           ],
-          const SizedBox(height: 24),
+          if (_wantsCommentExperience && _trendFuture != null) ...[
+            FutureBuilder<CommentTrendUiResult>(
+              future: _trendFuture!,
+              builder: (context, trendSnap) {
+                return CommentTrendInsightSection(
+                  snapshot: trendSnap,
+                  onRetry: () {
+                    setState(() {
+                      _trendFuture = _loadTrendInsight();
+                    });
+                  },
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+          ],
           Text(
             'コメント',
             style: theme.textTheme.titleMedium?.copyWith(
@@ -520,11 +627,7 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
                   const Text('コメント翻訳の取得に失敗しました'),
                   const SizedBox(height: 8),
                   OutlinedButton(
-                    onPressed: () {
-                      setState(() {
-                        _commentsFuture = _fetchTranslatedComments();
-                      });
-                    },
+                    onPressed: _reloadCommentsAndTrend,
                     child: const Text('再試行'),
                   ),
                 ],
@@ -666,6 +769,80 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _showAiContentReportSheet(BuildContext context) async {
+    final reportBody = StringBuffer()
+      ..writeln('【Yomi / AI 生成物の報告】')
+      ..writeln('storyId: ${story.id}')
+      ..writeln('title: ${story.title}')
+      ..writeln('url: ${story.url ?? ""}')
+      ..writeln()
+      ..writeln('（不適切な点・正しい情報などを記載してください）');
+    final bodyText = reportBody.toString();
+
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'AI生成内容の報告',
+                  style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  '要約・コメント傾向・翻訳など、AI が生成した内容に問題がある場合は、'
+                  '以下から開発者へ連絡できます。記事 ID などはコピー用テキストに含めています。',
+                  style: Theme.of(ctx).textTheme.bodySmall?.copyWith(height: 1.45),
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: () async {
+                    await Clipboard.setData(ClipboardData(text: bodyText));
+                    if (!ctx.mounted) return;
+                    Navigator.pop(ctx);
+                    if (!context.mounted) return;
+                    _showSnackBar(context, '報告用テキストをコピーしました');
+                  },
+                  icon: const Icon(Icons.copy, size: 18),
+                  label: const Text('報告用テキストをコピー'),
+                ),
+                if (AppConstants.aiContentReportEmail.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final uri = Uri(
+                        scheme: 'mailto',
+                        path: AppConstants.aiContentReportEmail,
+                        queryParameters: <String, String>{
+                          'subject': 'Yomi AI生成内容の報告',
+                          'body': bodyText,
+                        },
+                      );
+                      if (await canLaunchUrl(uri)) {
+                        await launchUrl(uri);
+                      }
+                      if (ctx.mounted) Navigator.pop(ctx);
+                    },
+                    icon: const Icon(Icons.mail_outline, size: 18),
+                    label: const Text('メールアプリで送信'),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -673,6 +850,22 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('記事詳細'),
+        actions: [
+          PopupMenuButton<String>(
+            tooltip: 'その他',
+            onSelected: (value) {
+              if (value == 'report_ai') {
+                _showAiContentReportSheet(context);
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'report_ai',
+                child: Text('AI生成内容を報告'),
+              ),
+            ],
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           tabs: const [

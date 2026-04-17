@@ -6,23 +6,31 @@ import '../config/app_config.dart';
 
 /// Firebase 初期化の直後に呼ぶ。
 ///
-/// `prod` のみ本番プロバイダ。`dev` / `stg` は常に Debug（エミュレータ・
-/// profile ビルドでも Play Integrity に落ちないようにする）。
+/// **Android / iOS の本番アテステーション**（Play Integrity / App Attest）は
+/// `prod` かつ **リリースビルド**（`kReleaseMode`）のときだけ有効にする。
+///
+/// `prod` でも `flutter run`（デバッグ）やエミュレータでは Debug プロバイダにし、
+/// そうしないと Play Integrity が 403（App attestation failed）になりやすい。
+/// `dev` / `stg` は常に Debug。
 Future<void> bootstrapAppCheck(FirebaseApp app) async {
-  final useDebugProviders = AppConfig.instance.flavor != Flavor.prod;
+  final flavor = AppConfig.instance.flavor;
+  final useProductionAttestation = flavor == Flavor.prod && kReleaseMode;
+
+  final androidProvider =
+      useProductionAttestation ? AndroidProvider.playIntegrity : AndroidProvider.debug;
+  final appleProvider =
+      useProductionAttestation ? AppleProvider.appAttest : AppleProvider.debug;
 
   await FirebaseAppCheck.instanceFor(app: app).activate(
-    androidProvider:
-        useDebugProviders ? AndroidProvider.debug : AndroidProvider.playIntegrity,
-    appleProvider:
-        useDebugProviders ? AppleProvider.debug : AppleProvider.appAttest,
+    androidProvider: androidProvider,
+    appleProvider: appleProvider,
   );
 
-  if (useDebugProviders && kDebugMode) {
+  if (!useProductionAttestation && kDebugMode) {
     debugPrint(
-      'App Check: Debug プロバイダを有効化しました。'
+      'App Check: Debug プロバイダを有効化しました（flavor=$flavor）。'
       'Logcat の debug secret を Firebase Console（同一プロジェクト）の '
-      'App Check → Android アプリ → デバッグトークンに登録してください。',
+      'App Check → アプリ → デバッグトークンに登録してください。',
     );
   }
 }

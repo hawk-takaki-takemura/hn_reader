@@ -41,9 +41,10 @@ int _scoreStoryForGenres(Story story, Set<TopicGenre> selectedGenres) {
   return score;
 }
 
-/// HN 原文・表示タイトル・URL・Firestore enrich（タグ・要約）をまとめた検索用テキスト。
+/// HN 原文・表示タイトル・URL・Firestore enrich / comments_enrichment をまとめた検索用テキスト。
 String _searchableText(Story story) {
   final e = story.enrichment;
+  final ce = story.commentsEnrichment;
   final parts = <String>[
     story.title,
     story.translatedTitle ?? '',
@@ -54,6 +55,11 @@ String _searchableText(Story story) {
       e.summaryShort ?? '',
       ...e.summaryPoints,
       ...e.tags,
+    ],
+    if (ce != null) ...[
+      ce.summary,
+      ...ce.keywords,
+      for (final tc in ce.topComments) tc.textJa,
     ],
   ];
   return parts.join(' ');

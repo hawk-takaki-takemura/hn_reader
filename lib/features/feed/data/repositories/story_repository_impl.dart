@@ -50,6 +50,7 @@ class StoryRepositoryImpl implements StoryRepository {
     return story.copyWith(
       enrichStatus: enriched.enrichStatus,
       enrichment: enriched.enrichment,
+      commentsEnrichment: enriched.commentsEnrichment,
     );
   }
 
@@ -75,6 +76,7 @@ class StoryRepositoryImpl implements StoryRepository {
       return story.copyWith(
         enrichStatus: enriched.enrichStatus,
         enrichment: enriched.enrichment,
+        commentsEnrichment: enriched.commentsEnrichment,
       );
     }).toList();
   }
