@@ -390,10 +390,31 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
     return h.startsWith('www.') ? h.substring(4) : h;
   }
 
-  bool _isGoogleTranslateHost(String? host) {
-    if (host == null) return false;
+  /// Google 翻訳フローで WebView 内に留めたいホスト（リダイレクト・同意画面など）。
+  bool _isGoogleInAppNavigationHost(Uri? destUri) {
+    final host = destUri?.host;
+    if (host == null || host.isEmpty) return false;
     final h = host.toLowerCase();
-    return h == 'translate.google.com' || h == 'translate.google.co.jp';
+    if (h == 'translate.google.com' || h.endsWith('.translate.google.com')) {
+      return true;
+    }
+    if (h == 'translate.google.co.jp' || h.endsWith('.translate.google.co.jp')) {
+      return true;
+    }
+    if (h == 'consent.google.com' ||
+        h == 'accounts.google.com' ||
+        h == 'ogs.google.com') {
+      return true;
+    }
+    final path = destUri?.path.toLowerCase() ?? '';
+    if ((h == 'www.google.com' || h == 'google.com') && path.contains('translate')) {
+      return true;
+    }
+    // Google 翻訳のプロキシ（例: hex-ooo.translate.goog）
+    if (h.endsWith('.translate.goog')) {
+      return true;
+    }
+    return false;
   }
 
   void _setupWebViewController() {
@@ -402,28 +423,49 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
       _webViewController = null;
       return;
     }
-    final controller = WebViewController()
+
+    final webController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
         NavigationDelegate(
           onNavigationRequest: (NavigationRequest request) {
+            if (kDebugMode) {
+              debugPrint(
+                '[StoryDetail:WebView] onNavigationRequest '
+                'mainFrame=${request.isMainFrame} url=${request.url}',
+              );
+            }
+            if (!request.isMainFrame) {
+              return NavigationDecision.navigate;
+            }
             final destUri = Uri.tryParse(request.url);
             final original = _originalArticleUri;
             final originalComparable = _hostForSameSiteCompare(original);
             final destComparable = _hostForSameSiteCompare(destUri);
-            final destHost = destUri?.host;
 
-            if (_isGoogleTranslateHost(destHost)) {
+            if (_isGoogleInAppNavigationHost(destUri)) {
+              if (kDebugMode) {
+                debugPrint('[StoryDetail:WebView]  -> stay in-app (google / translate family)');
+              }
               return NavigationDecision.navigate;
             }
             if (originalComparable != null &&
                 destComparable != null &&
                 destComparable == originalComparable) {
+              if (kDebugMode) {
+                debugPrint('[StoryDetail:WebView]  -> stay in-app (same site as article)');
+              }
               return NavigationDecision.navigate;
             }
             if (originalComparable != null &&
                 destComparable != null &&
                 destComparable != originalComparable) {
+              if (kDebugMode) {
+                debugPrint(
+                  '[StoryDetail:WebView]  -> external browser '
+                  '(articleHost=$originalComparable destHost=$destComparable)',
+                );
+              }
               unawaited(
                 launchUrl(
                   Uri.parse(request.url),
@@ -432,12 +474,15 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
               );
               return NavigationDecision.prevent;
             }
+            if (kDebugMode) {
+              debugPrint('[StoryDetail:WebView]  -> stay in-app (default navigate)');
+            }
             return NavigationDecision.navigate;
           },
         ),
       )
       ..loadRequest(target);
-    _webViewController = controller;
+    _webViewController = webController;
   }
 
   Future<void> _launchMachineTranslatedArticle(BuildContext context) async {
@@ -451,12 +496,21 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
       _showSnackBar(context, 'WebView が利用できません');
       return;
     }
+    if (kDebugMode) {
+      debugPrint('[StoryDetail:WebView] Google翻訳 loadRequest uri=$uri');
+    }
     try {
       await c.loadRequest(uri);
-    } catch (_) {
+    } catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('[StoryDetail:WebView] loadRequest failed: $e\n$st');
+      }
       if (!context.mounted) return;
       _showSnackBar(context, '翻訳ページを開けませんでした');
       return;
+    }
+    if (kDebugMode) {
+      debugPrint('[StoryDetail:WebView] Google翻訳 loadRequest ok, animateTo 本文タブ');
     }
     if (!mounted) return;
     _tabController.animateTo(1);
@@ -746,47 +800,76 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('本文URLが見つからないため表示できません'),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: () => _launchStoryUrl(context),
-                icon: const Icon(Icons.open_in_new),
-                label: const Text('元記事を開く'),
+              Icon(
+                story.url == null ? Icons.forum_outlined : Icons.link_off,
+                size: 48,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                story.url == null
+                    ? 'この投稿は HN 上のディスカッションです'
+                    : '元記事のURLが見つかりません',
+                style: theme.textTheme.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                story.url == null
+                    ? 'コメントタブで議論の要約と翻訳をご覧ください'
+                    : '削除・非公開になっている可能性があります',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              OutlinedButton.icon(
+                onPressed: () => launchUrl(
+                  Uri.parse('https://news.ycombinator.com/item?id=${story.id}'),
+                  mode: LaunchMode.inAppBrowserView,
+                ),
+                icon: const Icon(Icons.open_in_new, size: 16),
+                label: const Text('HN で見る'),
               ),
             ],
           ),
         ),
       );
     }
+
     return Column(
       children: [
         Container(
-          width: double.infinity,
           color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: Row(
             children: [
-              Text(
-                story.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.labelMedium,
-              ),
-              const SizedBox(height: 6),
-              Text(
-                '本文はサイトの原文です。下のボタンでこのタブ内に Google 翻訳を表示できます。',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+              TextButton.icon(
+                onPressed: () => _launchMachineTranslatedArticle(context),
+                icon: const Icon(Icons.translate, size: 16),
+                label: const Text('翻訳'),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
               ),
-              const SizedBox(height: 6),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: () => _launchMachineTranslatedArticle(context),
-                  icon: const Icon(Icons.translate, size: 18),
-                  label: const Text('Google翻訳で開く'),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: () => _launchStoryUrl(context),
+                icon: const Icon(Icons.open_in_new, size: 16),
+                label: const Text('外部で開く'),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
               ),
             ],
@@ -797,8 +880,6 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
             controller: _webViewController!,
             gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
               Factory<OneSequenceGestureRecognizer>(VerticalDragGestureRecognizer.new),
-              Factory<OneSequenceGestureRecognizer>(HorizontalDragGestureRecognizer.new),
-              Factory<OneSequenceGestureRecognizer>(ScaleGestureRecognizer.new),
             },
           ),
         ),
@@ -887,12 +968,50 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // 既定の約 1/3 縮小（ツールバー + タブでコンテンツ領域を広げる）
+    final compactToolbarHeight = kToolbarHeight * 2 / 3;
+    final compactTabBarHeight = kTextTabBarHeight * 2 / 3;
+    final compactIconStyle = IconButton.styleFrom(
+      visualDensity: VisualDensity.compact,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      padding: const EdgeInsets.all(6),
+      minimumSize: Size.zero,
+    );
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('記事詳細'),
+        toolbarHeight: compactToolbarHeight,
+        titleTextStyle: theme.textTheme.titleSmall?.copyWith(
+          fontWeight: FontWeight.w600,
+        ),
+        iconTheme: IconThemeData(
+          size: 20,
+          color: theme.colorScheme.onSurface,
+        ),
+        actionsIconTheme: IconThemeData(
+          size: 20,
+          color: theme.colorScheme.onSurface,
+        ),
+        title: Text(story.domain ?? 'Hacker News'),
+        centerTitle: true,
         actions: [
+          IconButton(
+            style: compactIconStyle,
+            onPressed: () {
+              _showSnackBar(context, '保存機能は次のリリースで追加予定です');
+            },
+            icon: const Icon(Icons.bookmark_border),
+            tooltip: '保存',
+          ),
+          IconButton(
+            style: compactIconStyle,
+            onPressed: _copyStoryUrl,
+            icon: const Icon(Icons.share_outlined),
+            tooltip: '共有',
+          ),
           PopupMenuButton<String>(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
             tooltip: 'その他',
             onSelected: (value) {
               if (value == 'report_ai') {
@@ -907,12 +1026,21 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
             ],
           ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(text: '要約＋コメント'),
-            Tab(text: '本文'),
-          ],
+        bottom: PreferredSize(
+          preferredSize: Size.fromHeight(compactTabBarHeight),
+          child: SizedBox(
+            height: compactTabBarHeight,
+            child: TabBar(
+              controller: _tabController,
+              labelStyle: theme.textTheme.labelSmall,
+              labelPadding: const EdgeInsets.symmetric(horizontal: 6),
+              indicatorWeight: 2,
+              tabs: const [
+                Tab(text: '要約＋コメント'),
+                Tab(text: '本文'),
+              ],
+            ),
+          ),
         ),
       ),
       body: TabBarView(
@@ -921,31 +1049,6 @@ class _StoryDetailScreenState extends State<StoryDetailScreen>
           _buildOverviewTab(theme),
           _buildArticleTab(theme),
         ],
-      ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  _showSnackBar(context, '保存機能は次のリリースで追加予定です');
-                },
-                icon: const Icon(Icons.bookmark_border),
-                label: const Text('保存'),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _copyStoryUrl,
-                icon: const Icon(Icons.share_outlined),
-                label: const Text('共有'),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
